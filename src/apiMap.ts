@@ -218,7 +218,7 @@ export class API_Map extends EventEmitter<MapEvents> {
         character: API_Character,
         prevPos: ChatRoomMapPos,
     ): void {
-        // maybe? if necessary?
+        // maybe? if necessary? - yes it is for adventure maps
         //this.emit("CharacterMapMove", this.getCharacter(memberNumber));
         if (
             character.MapPos.X === prevPos.X &&

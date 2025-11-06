@@ -5,3 +5,6 @@ out
 
 config*.json
 !config.sample.json
+ 
+# Ignore all data directories
+**/data/

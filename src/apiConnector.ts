@@ -523,7 +523,7 @@ export class API_Connector extends EventEmitter<ConnectorEvents> {
     };
 
     private onChatRoomSyncMapData = (update: ServerMapDataResponse) => {
-        console.log("chat room map data", update);
+        //console.log("chat room map data", update);
         this._chatRoom?.mapPositionUpdate(update.MemberNumber, update.MapData);
     };
 
@@ -546,7 +546,7 @@ export class API_Connector extends EventEmitter<ConnectorEvents> {
             !this.ignoreMsgs.includes(msg.Content) &&
             msg.Sender !== this.Player.MemberNumber
         ) {
-            console.log("chat room message", msg);
+            //console.log("chat room message", msg);
         }
 
         if (!msg.Sender) return;
