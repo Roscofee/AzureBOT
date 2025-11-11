@@ -3,14 +3,20 @@ import { PlayerRepo } from "../ports/PlayerRepo";
 import { MessagePort } from "../ports/MessagePort";
 import { createSkill } from "../skills/SkillRegistry";
 
+type ClassGameConfig = {
+  acceptedClassNames: string[];
+  getXPConfigFor: (classId?: number) => { baseXP: number; scaling: number };
+};
+
 export class ClassSelectionService {
-  constructor(private repo: PlayerRepo, private messages: MessagePort) {}
+  constructor(private repo: PlayerRepo, private messages: MessagePort, private gameConfig?: ClassGameConfig) {}
 
   /**
    * Load player's available classes (filtered by optional accepted names) and whisper a summary.
    */
   async listPlayerClasses(player: PlayerCore, acceptedNames: string[] = []) {
-    const classes = await this.repo.obtainPlayerClass(player.identity.id, acceptedNames);
+    const allow = acceptedNames.length ? acceptedNames : (this.gameConfig?.acceptedClassNames ?? []);
+    const classes = await this.repo.obtainPlayerClass(player.identity.id, allow);
     if (!classes || classes.length === 0) {
       this.messages.whisper(player.identity.id, "(No classes available)");
       return;
@@ -27,7 +33,9 @@ export class ClassSelectionService {
    * Select a class by id or name; updates classing and skills modules and persists progress.
    */
   async select(player: PlayerCore, classIdentifier: number | string, acceptedNames: string[] = []) {
-    const classes = await this.repo.obtainPlayerClass(player.identity.id, acceptedNames);
+    const allow = acceptedNames.length ? acceptedNames : (this.gameConfig?.acceptedClassNames ?? []);
+    const classes = await this.repo.obtainPlayerClass(player.identity.id, allow);
+
     const sel = classes.find((c: any) =>
       typeof classIdentifier === "number"
         ? c.class_id === classIdentifier
@@ -44,14 +52,19 @@ export class ClassSelectionService {
     classing.state.name = sel.class_name;
     classing.state.level = sel.class_level ?? 1;
     classing.state.xp = sel.class_exp ?? 0;
-    // recompute xpToLevel (mirror defaults)
-    classing.state.xpToLevel = Math.floor(100 * Math.pow(classing.state.level || 1, 1.5));
+    // recompute xpToLevel using injected config if available (fallback to defaults)
+    const cfg = this.gameConfig?.getXPConfigFor(sel.class_id);
+    const base = cfg?.baseXP ?? 100;
+    const scaling = cfg?.scaling ?? 1.5;
+    classing.state.xpToLevel = Math.floor(base * Math.pow(classing.state.level || 1, scaling));
     classing.state.maxEnergy = sel.class_energy ?? classing.state.maxEnergy ?? 0;
     classing.state.currentEnergy = classing.state.maxEnergy;
+    (classing.state as any).description = sel.class_description;
 
     // Load current class skills from repo
     const skillsModule = player.get<any>("skills");
     const skills = await this.repo.obtainPlayerCurrentSkillsFromClass(player.identity.id, classing.state.classId);
+    console.log(`Building skill map for ${player.getName()} in class ${classing.state.name}`);
     skillsModule.state.skills = [];
     for (const s of skills) {
       const skill = createSkill({
@@ -75,8 +88,8 @@ export class ClassSelectionService {
       energy: classing.state.maxEnergy,
     });
 
-    const info = `(:: Class '${classing.state.name}' selected. Level ${classing.state.level}, XP ${classing.state.xp}/${classing.state.xpToLevel}, Energy ${classing.state.currentEnergy}/${classing.state.maxEnergy})`;
-    this.messages.whisper(player.identity.id, info);
+    const info = `${player.getName()} :: Class '${classing.state.name}' selected. Level ${classing.state.level}, XP ${classing.state.xp}/${classing.state.xpToLevel}, Energy ${classing.state.currentEnergy}/${classing.state.maxEnergy}`;
+    //this.messages.whisper(player.identity.id, info);
+    console.log(info);
   }
 }
-

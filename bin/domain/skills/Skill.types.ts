@@ -1,6 +1,6 @@
 import { PlayerCore } from "../core/PlayerCore";
 import { DomainEvent } from "../ports/DomainEvenPort";
-import { IncomingMessage } from "../ports/MessagePort";
+import { ChatMessageType, IncomingMessage } from "../ports/MessagePort";
 export { ChatMessageType } from "../ports/MessagePort";
 
 export type SkillEffect =
@@ -30,6 +30,9 @@ export interface Skill {
 
   validInput(data: IncomingMessage): boolean;
   canExecute(player: PlayerCore): boolean;
+
+  /** Optional: compute dynamic energy cost based on player state */
+  computeEnergy?(player: PlayerCore): number;
 
   /** PURE: compute base energy/reward + effects; no mutations here */
   use(player: PlayerCore): SkillResult;
@@ -67,4 +70,5 @@ export interface SkillsApi {
   add(skill: Skill): void;
   resetAll(): void;
   applyModifiers(mods: AnyModifier[]): void; // <- update
+  printSkillsInfo(): string;
 }

@@ -2,8 +2,10 @@ import { PlayerCore } from "../core/PlayerCore";
 import { PlayerRepo } from "../ports/PlayerRepo";
 import { MessagePort } from "../ports/MessagePort";
 
+type ClassShopConfig = { classPrices?: Partial<Record<number, number>> };
+
 export class ClassShopService {
-  constructor(private repo: PlayerRepo, private messages: MessagePort) {}
+  constructor(private repo: PlayerRepo, private messages: MessagePort, private shopCfg?: ClassShopConfig) {}
 
   /** List classes available for purchase and whisper the shop to the player. */
   async openShop(player: PlayerCore, acceptedClassNames: string[] = []) {
@@ -15,9 +17,9 @@ export class ClassShopService {
 
     let msg = "(Classes available for purchase:\n";
     for (const it of items) {
-      msg += `|| ${it.class_name}, Price: 1000 Ac ||\n-> ${it.class_description}\n`;
+      const price = this.shopCfg?.classPrices?.[it.class_id] ?? 1000;
+      msg += `|| ${it.class_name}, Price: ${price} Ac ||\n-> ${it.class_description}\n`;
     }
     this.messages.whisper(player.identity.id, msg);
   }
 }
-

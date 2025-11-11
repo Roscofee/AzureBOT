@@ -1,0 +1,64 @@
+﻿import { PlayerCore, PlayerModule } from "../core/PlayerCore";
+import { PlayerRepo } from "../ports/PlayerRepo";
+import { MessagePort } from "../ports/MessagePort";
+
+export interface ClassProgress { classId: number; name: string; level: number; xp: number; xpToLevel: number; }
+export interface ClassingApi {
+  gainXp(amount: number): number; // returns levels gained
+  info(): ClassProgress;
+}
+export type ClassingModule = PlayerModule & ClassingApi & { state: ClassProgress & { maxEnergy: number; currentEnergy: number } };
+
+export function createClassingModule(
+  initial: Omit<ClassingModule["state"], "xpToLevel"> & { xpToLevel?: number },
+  repo: PlayerRepo,
+  messages: MessagePort,
+  cfg = { baseXP: 100, scaling: 1.5, energyPerLevel: 10, levelAnnouncements: [25, 50, 100] as number[] }
+): ClassingModule {
+  let player: PlayerCore;
+
+  const xpToLevel = initial.xpToLevel ?? Math.floor(cfg.baseXP * Math.pow(initial.level || 1, cfg.scaling));
+
+  const mod: ClassingModule = {
+    key: "classing",
+    state: { ...initial, xpToLevel },
+
+    onAttach(p) { player = p; },
+
+    gainXp(amount) {
+      if (this.state.level > 100) return 0;
+      this.state.xp += amount;
+      let levels = 0;
+      while (this.state.xp >= this.state.xpToLevel) {
+        this.state.xp -= this.state.xpToLevel;
+        this.state.level++;
+        this.state.maxEnergy += cfg.energyPerLevel;
+        this.state.currentEnergy = Math.min(this.state.currentEnergy + cfg.energyPerLevel, this.state.maxEnergy);
+
+        // recompute xpToLevel
+        this.state.xpToLevel = Math.floor(cfg.baseXP * Math.pow(this.state.level, cfg.scaling));
+
+        messages.broadcast(`(\nðŸŸ© ${this.state.name} ${player.identity.nickname ?? player.identity.name}\nHas reached level ${this.state.level}`);
+        void repo.updateClassProgress({
+          playerId: player.identity.id,
+          classId: this.state.classId,
+          level: this.state.level,
+          xp: this.state.xp,
+          bestScore: 0, // handled in another module
+          score: 0,
+          energy: this.state.maxEnergy
+        });
+
+        if (cfg.levelAnnouncements.includes(this.state.level)) {
+          // already broadcasted; keep if you want special formatting here
+        }
+        levels++;
+      }
+      return levels;
+    },
+
+    info() { return { classId: this.state.classId, name: this.state.name, level: this.state.level, xp: this.state.xp, xpToLevel: this.state.xpToLevel }; }
+  };
+
+  return mod;
+}

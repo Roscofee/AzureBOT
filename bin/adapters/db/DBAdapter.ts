@@ -64,6 +64,10 @@ export class DBAdapter implements PlayerRepo {
     return DB.updatePlayerSkillLevel(playerId, skillId, newLevel);
   }
 
+  async assignClassToPlayer(playerId: number, classId: number) {
+    return DB.assignClassToPlayer(playerId, classId);
+  }
+
   // Optional helpers you already have
   async registerPlayer(id: number, name: string, nickname: string) {
     return DB.registerPlayer(id, name, nickname);

@@ -1,6 +1,7 @@
 import { PlayerCore } from "../core/PlayerCore";
 import { PlayerRepo, PlayerRow } from "../ports/PlayerRepo";
 import { MessagePort } from "../ports/MessagePort";
+import { registerDialog } from "../../dialog/registerDialog";
 
 export class PlayerRegisterService {
     constructor(private repo: PlayerRepo, private messages: MessagePort) {}
@@ -10,7 +11,9 @@ export class PlayerRegisterService {
         //Obtain info from database if exists from player id
         let dbPlayerRow = await this.repo.getPlayer(playerData.id);
 
-        //If no player found, call register service, then obatin PlayerRow
+        let aux = "";
+
+        //If no player found, call register service, then obtain PlayerRow
         if(!dbPlayerRow){
             await this.repo.registerPlayer(
                 playerData.id,
@@ -19,7 +22,13 @@ export class PlayerRegisterService {
             );
 
             dbPlayerRow = await this.repo.getPlayer(playerData.id);
+
+            aux = registerDialog.register.registerFinal.replace("$name", playerData.nickname || playerData.name);
+        }else{
+            aux = registerDialog.register.registerReturning.replace("$name", playerData.nickname || playerData.name);
         }
+
+        this.messages.whisper(playerData.id, aux);
 
         return dbPlayerRow;
 

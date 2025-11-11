@@ -31,6 +31,10 @@ export class PlayerCore {
     this.ctx = ctx;
   }
 
+  getName(){
+    return this.identity.nickname || this.identity.name;
+  }
+
   attach<M extends PlayerModule>(mod: M): M {
     if (this.modules.has(mod.key)) throw new Error(`Module ${mod.key} exists`);
     this.modules.set(mod.key, mod);

@@ -4,8 +4,8 @@ export interface PlayerRow {
   name: string;
   nickname: string | null;
   currency: number; 
-  regular: number; 
-  superadmin: number; 
+  regular: boolean; 
+  superadmin: boolean; 
   creation_date: string; 
 }
 
@@ -65,6 +65,7 @@ export interface PlayerRepo {
   // writes used by shop/upgrade flows
   assignSkillToPlayer(playerId: number, skillId: number): Promise<void>;
   updatePlayerSkillLevel(playerId: number, skillId: number, newLevel: number): Promise<void>;
+  assignClassToPlayer(playerId: number, classId: number): Promise<void>;
 
   // (optional) registration / flags you already have
   registerPlayer(id: number, name: string, nickname: string): Promise<void>;

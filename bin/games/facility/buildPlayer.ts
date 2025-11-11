@@ -3,12 +3,13 @@ import { createEconomyModule } from "../../domain/modules/economy";
 import { createClassingModule } from "../../domain/modules/classing";
 import { createSkillsModule } from "../../domain/modules/skills";
 import { createScoringModule } from "../../domain/modules/scoring";
-import type { PlayerRepo } from "../../domain/ports/PlayerRepo";
+import type { PlayerRepo, PlayerRow } from "../../domain/ports/PlayerRepo";
 import type { MessagePort } from "../../domain/ports/MessagePort";
 import type { DomainEventBus } from "../../domain/ports/DomainEvenPort";
 import { asGamePlayer, ensureModules, PlayerFor } from "../../domain/core/game-schema";
 import { FacilitySchema } from "./schema";
 import { createFlagsModule } from "../../domain/modules/flags";
+import { FacilityConfig } from "./config";
 
 export type DairyPlayer = PlayerFor<typeof FacilitySchema>;
 
@@ -46,11 +47,21 @@ export interface PlayerInitials {
 /**
  * Build a Facility (Dairy) player by composing required modules defined by FacilitySchema.
  */
-export function buildDairyPlayer(identity: PlayerIdentity, deps: BuildPlayerDeps, init: PlayerInitials = {}): DairyPlayer {
+export function buildDairyPlayer(identity: PlayerIdentity, deps: BuildPlayerDeps, dbInfo: PlayerRow): DairyPlayer {
   const { repo, messages, bus } = deps;
 
   // Create core
   const core = new PlayerCore(identity, { bus });
+
+  //Create initial data using passed dbInfo
+  const init: PlayerInitials = {
+      economy: dbInfo.currency,
+      flags: {
+        regular: dbInfo.regular,
+        superadmin: dbInfo.superadmin,
+        active: false
+      }
+  };
 
   // Attach required modules per schema
   core.attach(createSkillsModule());
@@ -69,7 +80,8 @@ export function buildDairyPlayer(identity: PlayerIdentity, deps: BuildPlayerDeps
         currentEnergy: init.classing?.currentEnergy ?? 0,
       },
       repo,
-      messages
+      messages,
+      { ...FacilityConfig.defaultXP, getClassMaxLevel: FacilityConfig.classMaxLevel, adjustXPGain: FacilityConfig.adjustXPGain }
     )
   );
 
@@ -93,4 +105,3 @@ export function buildDairyPlayer(identity: PlayerIdentity, deps: BuildPlayerDeps
   ensureModules(core, FacilitySchema);
   return asGamePlayer<typeof FacilitySchema>(core);
 }
-

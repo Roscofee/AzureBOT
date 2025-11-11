@@ -3,8 +3,23 @@ import { PlayerRepo } from "../ports/PlayerRepo";
 import { MessagePort } from "../ports/MessagePort";
 import { createSkill } from "../skills/SkillRegistry";
 
+type SkillPricingCfg = {
+  skill?: {
+    globalMultiplier?: number;
+    overrides?: Partial<Record<number, number>>;
+  };
+  skillMaxLevel?: (skillId?: number) => number;
+};
+
 export class SkillUpgradeService {
-  constructor(private repo: PlayerRepo, private messages: MessagePort) {}
+  constructor(private repo: PlayerRepo, private messages: MessagePort, private pricingCfg?: SkillPricingCfg) {}
+
+  private calcPrice(raw: number, skillId: number): number {
+    const override = this.pricingCfg?.skill?.overrides?.[skillId];
+    if (override !== undefined) return override;
+    const mult = this.pricingCfg?.skill?.globalMultiplier ?? 1.0;
+    return Math.round(raw * mult);
+  }
 
   /** Show current skills and their upgrade prices. */
   openUpgradeList(player: PlayerCore) {
@@ -18,7 +33,8 @@ export class SkillUpgradeService {
     const cur = economy.state.currency;
     let msg = `("\nYour current class skills available for upgrade:\n\nYou can upgrade a skill with /bot upgradeSkill <skill name>\n\nCurrent balance: ${cur} ACs\n`;
     for (const s of skills.state.skills) {
-      const price = 1000 * (s.skillLevel ?? 1);
+      const base = 1000 * (s.skillLevel ?? 1);
+      const price = this.calcPrice(base, s.skillId);
       msg += `|| ${s.skillName} [Level ${s.skillLevel}], Price: ${price} Ac ||\n-> ${s.upgrade_description}\n`;
     }
     this.messages.whisper(player.identity.id, msg);
@@ -46,7 +62,15 @@ export class SkillUpgradeService {
       return;
     }
 
-    const price = 1000 * (skill.skillLevel ?? 1);
+    const curLevel = skill.skillLevel ?? 0;
+    const maxLevel = this.pricingCfg?.skillMaxLevel?.(skill.skillId) ?? 10;
+    if (curLevel >= maxLevel) {
+      this.messages.whisper(player.identity.id, `(: ${skill.skillName} is already at max level ${maxLevel})`);
+      return;
+    }
+
+    const base = 1000 * (curLevel || 1);
+    const price = this.calcPrice(base, skill.skillId);
     if (!economy.spend(price)) {
       this.messages.whisper(player.identity.id, "(==== \n ERROR: INSUFFICENT FUNDS \n ====");
       return;
@@ -72,4 +96,3 @@ export class SkillUpgradeService {
     this.messages.whisper(player.identity.id, "(==== \n SKILL UPGRADE SUCCESFUL \n ====");
   }
 }
-

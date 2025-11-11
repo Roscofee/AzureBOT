@@ -18,7 +18,9 @@ export class SkillEngine {
     for (const skill of skills) {
       if (!skill.validInput(data)) continue;
 
-      const baseEnergy = skill.energyCost ?? 0;
+      const baseEnergy = typeof (skill as any).computeEnergy === "function"
+        ? (skill as any).computeEnergy(player)
+        : (skill.energyCost ?? 0);
       const effEnergy  = this.applyEnergyModifiers(skill, baseEnergy, mods);
 
       // energy check against classing (or another energy source)
@@ -87,36 +89,10 @@ export class SkillEngine {
     return true;
   }
 
-  /** Map effects → module mutations (centralized, testable) */
+   /** Map effects → publish only; keep engine game-agnostic */
   private applyEffect(player: PlayerCore, e: SkillEffect) {
-    switch (e.type) {
-      case "QUALITY_ADJUST": {
-        const q = player.tryGet<any>("quality");
-        if (q) q.adjust(e.delta); // your QualityModule API
-        break;
-      }
-      case "QUALITY_SET": {
-        const q = player.tryGet<any>("quality");
-        if (q) q.set(e.value);
-        break;
-      }
-      case "BULL_CHARGE": {
-        const b = player.tryGet<any>("bull");
-        if (b) b.charge(e.delta);
-        break;
-      }
-      case "SCORING_BONUS": {
-        const s = player.tryGet<any>("scoring");
-        if (s) s.addShiftProduction(e.delta);
-        break;
-      }
-      case "EMIT_EVENT": {
-        player.ctx.bus.publish(e.event);
-        break;
-      }
-      default:
-        // ignore unknown effect types to be forward-compatible
-        break;
-      }
+    if (e.type === "EMIT_EVENT") {
+      player.ctx.bus.publish(e.event);
+    }
   }
 }

@@ -36,7 +36,7 @@ The bot can either be run locally or via the Docker image.
 The bot comes with some built games. In brackets is the value to use for 'game' in the config
 file to run that game.
 
-### Dairy Blue Farms ('dairy')
+### Dairy Blue Farms ('facility')
 
 Scripted milking map, ported to the ropeybot framework, includes a custom game based on milking rooms 
 where volunteers may join to unlock classes and skills to make more score (milk)

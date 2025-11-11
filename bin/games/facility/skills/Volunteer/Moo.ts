@@ -9,9 +9,9 @@ export class Moo implements Skill {
     skillLevel: number;
     description: string;
     upgrade_description: string;
-    
+
     validMessageTypes: ChatMessageType[] = ["Chat", "Emote"];
-    triggerTokens: string[] = ["moo"];
+    triggerTokens: string[] = ["moo", "mooing", "moo"];
     energyCost: number = 10;
     priority: number = 5;
 
@@ -30,19 +30,40 @@ export class Moo implements Skill {
     }
 
     validInput(data: IncomingMessage): boolean {
-        if (!this.validMessageTypes.includes(data.Type)) return false;
+        const validMessageType = this.validMessageTypes.includes(data.Type);
         const content = (data.Content ?? "").toLowerCase();
-        return this.triggerTokens.some(t => content.includes(t));
+        const canTrigger = content.includes(this.triggerTokens[0]);
+        return validMessageType && canTrigger;
     }
+
     canExecute(player: PlayerCore): boolean {
-        throw new Error("Method not implemented.");
+        // Keep simple in current engine: energy cost is constant (engine checks availability)
+        // If you want dynamic cost by level, engine computes energy before this call.
+        return true;
     }
+
     use(player: PlayerCore): SkillResult {
-        throw new Error("Method not implemented.");
+        const baseIncrease = 3;
+        const levelMultiplier = 1 + (0.1 * this.skillLevel);
+        const scoreIncrease = baseIncrease * levelMultiplier;
+
+        const name = player.identity.nickname ?? player.identity.name;
+        console.log(`${name} triggered Moo skill (increase ${scoreIncrease.toFixed(2)})`);
+
+        // Engine uses computeEnergy() for energy; return here for completeness
+        return { energy: this.computeEnergy(player), reward: scoreIncrease };
     }
-    reset?(): void {
-        throw new Error("Method not implemented.");
+
+    computeEnergy(player: PlayerCore): number {
+        // Dynamic cost: base 10; if level > 1, add 10% of max energy
+        const classing = player.tryGet<any>("classing");
+        const base = this.energyCost;
+        if (!classing) return base;
+        if (this.skillLevel > 1) {
+            const extra = Math.floor((classing.state.maxEnergy ?? 0) * 0.10);
+            return base + extra;
+        }
+        return base;
     }
-    
-    
+
 }

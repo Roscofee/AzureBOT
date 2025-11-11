@@ -23,6 +23,7 @@ import { PetSpa } from "./games/petspa";
 import { MaidsPartyNightSinglePlayerAdventure } from "./hub/logic/maidsPartyNightSinglePlayerAdventure";
 import { Casino } from "./games/casino";
 import { WorkShop } from "./games/Workshop";
+import { Facility } from "./games/Facility";
 
 const SERVER_URL = {
     live: "https://bondage-club-server.herokuapp.com/",
@@ -135,6 +136,13 @@ export async function startBot(): Promise<RopeyBot> {
         case "workshop":
             console.log("Starting game: Workshop");
             const workShop = new WorkShop(connector);
+            //await petSpaGame.init();
+            //connector.setBotDescription(PetSpa.description);
+            break;
+        case "facility":
+            console.log("Starting game: Workshop");
+            const facility = new Facility(connector);
+            connector.accountUpdate({ Nickname: "TOASTER" });
             //await petSpaGame.init();
             //connector.setBotDescription(PetSpa.description);
             break;

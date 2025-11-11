@@ -3,8 +3,22 @@ import { PlayerRepo } from "../ports/PlayerRepo";
 import { MessagePort } from "../ports/MessagePort";
 import { createSkill } from "../skills/SkillRegistry";
 
+type SkillPricingCfg = {
+  skill?: {
+    globalMultiplier?: number;
+    overrides?: Partial<Record<number, number>>;
+  };
+};
+
 export class SkillShopService {
-  constructor(private repo: PlayerRepo, private messages: MessagePort) {}
+  constructor(private repo: PlayerRepo, private messages: MessagePort, private pricingCfg?: SkillPricingCfg) {}
+
+  private calcPrice(raw: number, skillId: number): number {
+    const override = this.pricingCfg?.skill?.overrides?.[skillId];
+    if (override !== undefined) return override;
+    const mult = this.pricingCfg?.skill?.globalMultiplier ?? 1.0;
+    return Math.round(raw * mult);
+  }
 
   /** Show purchasable skills for the player's current class. */
   async openShop(player: PlayerCore) {
@@ -23,7 +37,8 @@ export class SkillShopService {
     for (const s of list) {
       let req = `|| Requires: class level ${s.class_level_req}`;
       if (s.previous_skill_id) req += `, ${s.previous_skill_name} lv(${s.previous_skill_level_req})`;
-      msg += `|| ${s.skill_name}, Price: ${s.price} Ac ||\n${req} ||\n-> ${s.skill_description}\n`;
+      const price = this.calcPrice(s.price as number, s.skill_id);
+      msg += `|| ${s.skill_name}, Price: ${price} Ac ||\n${req} ||\n-> ${s.skill_description}\n`;
     }
     this.messages.whisper(player.identity.id, msg);
   }
@@ -74,7 +89,7 @@ export class SkillShopService {
     }
 
     // Price & spend
-    const price = candidate.price as number;
+    const price = this.calcPrice(candidate.price as number, candidate.skill_id);
     if (!economy.spend(price)) {
       this.messages.whisper(player.identity.id, "(==== \n ERROR: INSUFFICENT FUNDS \n ====")
       return;
@@ -99,4 +114,3 @@ export class SkillShopService {
     this.messages.whisper(player.identity.id, "(==== \n SKILL PURCHASE SUCCESFUL \n ====");
   }
 }
-
