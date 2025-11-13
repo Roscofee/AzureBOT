@@ -10,6 +10,7 @@ import {
     CommandParser,
     BC_Server_ChatRoomMessage,
     API_Map,
+    API_Chatroom,
 } from "bc-bot";
 import { remainingTimeString } from "../utils";
 import { wait } from "../hub/utils";
@@ -32,6 +33,8 @@ import "./facility/skills/indext";
 import { SkillsModule } from "../domain/modules/skills";
 import { ClassingModule } from "../domain/modules/classing";
 import { FlagsModule } from "../domain/modules/flags";
+import { BOTPOS, makeBio, MAP, workStations } from "./facility/assets";
+import { undressCharacter } from "./facility/appereanceUtils";
 
 /**
  * Player type definition for this game, uses the configured schema
