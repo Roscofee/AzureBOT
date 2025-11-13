@@ -16,7 +16,7 @@ import { DefaultEventsMap, EventsMap } from "@socket.io/component-emitter";
 import { Socket } from "socket.io-client";
 
 // Don't send more than NUM_MESSAGES messages in TIME_INTERVAL milliseconds
-const NUM_MESSAGES = 5;
+const NUM_MESSAGES = 15;
 const TIME_INTERVAL = 1000;
 
 /**

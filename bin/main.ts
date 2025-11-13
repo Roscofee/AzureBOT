@@ -140,11 +140,9 @@ export async function startBot(): Promise<RopeyBot> {
             //connector.setBotDescription(PetSpa.description);
             break;
         case "facility":
-            console.log("Starting game: Workshop");
+            console.log("Starting game: Facility");
             const facility = new Facility(connector);
-            connector.accountUpdate({ Nickname: "TOASTER" });
-            //await petSpaGame.init();
-            //connector.setBotDescription(PetSpa.description);
+            await facility.init();
             break;
         default:
             console.log("No such game " + config.game);

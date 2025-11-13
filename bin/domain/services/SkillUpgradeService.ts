@@ -93,6 +93,11 @@ export class SkillUpgradeService {
       if (sk) skillsModule.add(sk);
     }
 
+    // Ensure skills are sorted by priority after reload
+    if (Array.isArray(skillsModule.state.skills)) {
+      skillsModule.state.skills.sort((a: any, b: any) => (b.priority ?? 0) - (a.priority ?? 0));
+    }
+
     this.messages.whisper(player.identity.id, "(==== \n SKILL UPGRADE SUCCESFUL \n ====");
   }
 }

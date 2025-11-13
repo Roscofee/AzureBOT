@@ -61,7 +61,7 @@ export class ClassSelectionService {
     classing.state.currentEnergy = classing.state.maxEnergy;
     (classing.state as any).description = sel.class_description;
 
-    // Load current class skills from repo
+    // Load current class skills from repo 
     const skillsModule = player.get<any>("skills");
     const skills = await this.repo.obtainPlayerCurrentSkillsFromClass(player.identity.id, classing.state.classId);
     console.log(`Building skill map for ${player.getName()} in class ${classing.state.name}`);
@@ -75,6 +75,11 @@ export class ClassSelectionService {
         upgrade_description: s.upgrade_description,
       });
       if (skill) skillsModule.add(skill);
+    }
+
+    // Ensure skills are sorted by priority after creation
+    if (Array.isArray(skillsModule.state.skills)) {
+      skillsModule.state.skills.sort((a: any, b: any) => (b.priority ?? 0) - (a.priority ?? 0));
     }
 
     // Persist class progress snapshot

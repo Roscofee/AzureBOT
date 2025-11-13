@@ -10,6 +10,7 @@ import {
     CommandParser,
     BC_Server_ChatRoomMessage,
     API_Map,
+    API_Chatroom,
 } from "bc-bot";
 import { remainingTimeString } from "../utils";
 import { wait } from "../hub/utils";
@@ -32,6 +33,8 @@ import "./facility/skills/indext";
 import { SkillsModule } from "../domain/modules/skills";
 import { ClassingModule } from "../domain/modules/classing";
 import { FlagsModule } from "../domain/modules/flags";
+import { BOTPOS, makeBio, MAP, workStations } from "./facility/assets";
+import { undressCharacter } from "./facility/appereanceUtils";
 
 /**
  * Player type definition for this game, uses the configured schema
@@ -50,7 +53,7 @@ const listOfUsedItemGroups = _.uniq(listOfUsedItems.map(i => i[0]));
 
 
 export class Facility{
-
+    
     private repo: PlayerRepo;
     private bus: DomainEventBus;
     private messages: MessagePort;
@@ -92,7 +95,6 @@ export class Facility{
             } catch { /* ignore malformed event */ }
         });
         const engine = new SkillEngine();
-        const classSelection = new ClassSelectionService(this.repo, this.messages, FacilityConfig);
 
         this.router = new MessageRouter(
             this.bus,
@@ -129,12 +131,18 @@ export class Facility{
         this.commandParser = new CommandParser(conn);
 
         //Room commands definition
+        //Admin commands
+        this.commandParser.register("farm", this.onCommandFarm);
+        this.commandParser.register("capture", this.onCommandCapture);
+        this.commandParser.register("test", this.onCommandTest);
+
         //Class selection/info display
         this.commandParser.register("select", this.onCommandSelect);
         this.commandParser.register("class", this.onCommandClass);
         this.commandParser.register("skills", this.onCommandSkills);   
 
         conn.on("Message", this.onMessage);
+        conn.on("RoomCreate", this.onChatRoomCreated);
 
 
     }
@@ -249,7 +257,7 @@ export class Facility{
         return true;
     }
 
-    //Room commands
+    //#region Room commands
     //Select class by name
     private onCommandSelect = async (
         sender: API_Character,
@@ -322,5 +330,156 @@ export class Facility{
         
         
     };
+
+    //Open/close farm
+    private onCommandFarm = async (
+        sender: API_Character,
+        msg: BC_Server_ChatRoomMessage,
+        args: string[],
+    ) => {
+
+         // Ensure the sender has permission (must be admin)
+        if (!this.commandPermission(sender, false, true)) return;
+
+        const acceptedCommands = ["open", "close"];
+
+        if(args.length < 1 || !acceptedCommands.includes(args[0])){
+            this.conn.reply(
+                msg,
+                "(Usage: farm <open||close>)",
+            );
+            return;
+        }
+
+        if(args[0].toLocaleLowerCase() === "open"){
+            this.farmOpen = true;
+
+            this.messages.broadcast(dialog.general.openFarm);
+            this.messages.broadcast(dialog.general.openFarm2);
+
+            //await this.setupRoom();
+            this.conn.moveOnMap(BOTPOS.X, BOTPOS.Y);
+
+        }else if(args[0].toLocaleLowerCase() === "close"){
+
+            this.farmOpen = false;
+
+            this.messages.broadcast(dialog.general.closeFarm);
+            this.messages.broadcast(dialog.general.closeFarm2);
+
+            //TODO free all active players
+        }
+    };
+
+    //Capture a character in room
+    private onCommandCapture = async (
+        sender: API_Character,
+        msg: BC_Server_ChatRoomMessage,
+        args: string[],
+    ) => {
+
+         // Ensure the sender has permission (must be admin)
+        if (!this.commandPermission(sender, false, true)) return;
+
+        if(args.length < 1){
+            this.conn.reply(
+                msg,
+                "(Usage: capture <target>)",
+            );
+            return;
+        }
+
+        const target = this.conn.chatRoom.findCharacter(args[0]);
+        
+        if(!target){
+            this.messages.whisper(sender.MemberNumber, `Capture target not found`);
+            return;
+        }
+
+        //TODO move player to first available workstation
+        target.mapTeleport({X: 15, Y: 17});
+    };
+
+    //Test command
+    private onCommandTest = async (
+        sender: API_Character,
+        msg: BC_Server_ChatRoomMessage,
+        args: string[],
+    ) => {
+
+        // Ensure the sender has permission (must be admin)
+        if (!this.commandPermission(sender, false, true)) return;
+
+        if(args.length < 1){
+            this.conn.reply(
+                msg,
+                "(Usage: test <target>)",
+            );
+            return;
+        }
+
+        const target = this.conn.chatRoom.findCharacter(args[0]);
+        
+        if(!target){
+            this.messages.whisper(sender.MemberNumber, `test target not found`);
+            return;
+        }
+
+        const orignal = await undressCharacter(target);
+        
+    };
+
+    //#endregion
+    //#region Room setup
+
+    public async init(): Promise<void>{
+        await this.setupRoom();
+        await this.setupCharacter();
+        this.addWorkstationTriggers();
+    }
+
+    private onChatRoomCreated = async () => {
+        await this.setupRoom();
+        await this.setupCharacter();
+    };
+
+    private setupRoom = async () => {
+            try {
+
+                const map = JSON.parse(decompressFromBase64(MAP));
+                map.Type = "Always"; // ensure maps are enabled
+                this.conn.chatRoom.map.setMapFromData(map);
+                console.log("Map set. Type:", this.conn.chatRoom.map.mapData?.Type);
+    
+            } catch (e) {
+                console.log("Map data not loaded", e);
+            }
+    };
+
+    private setupCharacter = async () => {
+
+        this.conn.moveOnMap(BOTPOS.X, BOTPOS.Y);
+        this.conn.accountUpdate({ Nickname: "Toaster"});
+        this.conn.setBotDescription(makeBio());
+
+    }
+    //#endregion
+    //#region Map triggers
+
+    private addWorkstationTriggers = (): void => {
+        for (const [idStr, pos] of Object.entries(workStations)) {
+        const id = Number(idStr);
+        this.conn.chatRoom.map.addTileTrigger(pos, (char, prevPos) => {
+        this.onWorkstationTrigger(id, char, prevPos);});
+        }
+    }
+
+    private onWorkstationTrigger(id: number, char: API_Character, prevPos: { X: number; Y: number }): void {
+        console.log(`Workstation ${id} triggered by ${char.Name} (${char.MemberNumber}) from (${prevPos.X},${prevPos.Y})`);
+    }
+
+
+
+    //#endregion
 
 }

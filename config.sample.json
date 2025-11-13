@@ -2,7 +2,7 @@
     "user": "your_bot_user_name",
     "password": "your_bot_password",
     "env": "live",
-    "game": "workshop",
+    "game": "facility",
     "superusers": [56731],
     "members": [],
     "room": {
