@@ -11,6 +11,7 @@ import {
     BC_Server_ChatRoomMessage,
     API_Map,
     API_Chatroom,
+    importBundle,
 } from "bc-bot";
 import { remainingTimeString } from "../utils";
 import { wait } from "../hub/utils";
@@ -33,8 +34,8 @@ import "./facility/skills/indext";
 import { SkillsModule } from "../domain/modules/skills";
 import { ClassingModule } from "../domain/modules/classing";
 import { FlagsModule } from "../domain/modules/flags";
-import { BOTPOS, makeBio, MAP, workStations } from "./facility/assets";
-import { undressCharacter } from "./facility/appereanceUtils";
+import { BOTPOS, makeBio, MAP, regularUniform, workStations } from "./facility/assets";
+import { dressCharacterWithRegularUniform, dressCharacterWithStandardUniform, undressCharacter } from "./facility/appereanceUtils";
 
 /**
  * Player type definition for this game, uses the configured schema
@@ -61,6 +62,12 @@ export class Facility{
     private commandParser : CommandParser;
     private dbRegisterService: PlayerRegisterService;
     private selectClassService: ClassSelectionService;
+    /**
+     * Track workstation assignment for registered players (MemberNumber -> workstationId)
+     * and which player currently occupies each workstation.
+     */
+    private playerWorkstations = new Map<number, number>();
+    private workstationOccupants = new Map<number, number>();
 
     /**
      * Shift in progress flag, false when a shift is finished
@@ -396,8 +403,25 @@ export class Facility{
             return;
         }
 
-        //TODO move player to first available workstation
-        target.mapTeleport({X: 15, Y: 17});
+        const workstationId = this.findAvailableWorkstation();
+        if (workstationId === null) {
+            this.messages.whisper(sender.MemberNumber, `No free workstations available.`);
+            return;
+        }
+
+        const targetPos = workStations[workstationId];
+        if (!targetPos) {
+            console.log(`ERROR: Workstation ${workstationId} has no coordinates defined.`);
+            return;
+        }
+
+        const player = this.router.get(target.MemberNumber) as DairyPlayer | undefined;
+        if (player) {
+            this.assignPlayerToWorkstation(player.identity.id, workstationId);
+        }
+
+        target.mapTeleport(targetPos);
+        this.messages.whisper(sender.MemberNumber, `Moved ${target.Name} to workstation ${workstationId}.`);
     };
 
     //Test command
@@ -426,21 +450,30 @@ export class Facility{
         }
 
         const orignal = await undressCharacter(target);
-        
+
+        await undressCharacter(target);
+        dressCharacterWithRegularUniform(target);
+        //dressCharacterWithStandardUniform(target);
+     
     };
 
     //#endregion
     //#region Room setup
 
     public async init(): Promise<void>{
+        console.log(`Init function launched`);
         await this.setupRoom();
         await this.setupCharacter();
+        this.playerWorkstations.clear();
+        this.workstationOccupants.clear();
         this.addWorkstationTriggers();
     }
 
     private onChatRoomCreated = async () => {
         await this.setupRoom();
         await this.setupCharacter();
+        this.playerWorkstations.clear();
+        this.workstationOccupants.clear();
     };
 
     private setupRoom = async () => {
@@ -468,14 +501,72 @@ export class Facility{
 
     private addWorkstationTriggers = (): void => {
         for (const [idStr, pos] of Object.entries(workStations)) {
-        const id = Number(idStr);
-        this.conn.chatRoom.map.addTileTrigger(pos, (char, prevPos) => {
-        this.onWorkstationTrigger(id, char, prevPos);});
+            const id = Number(idStr);
+            this.conn.chatRoom.map.addTileTrigger(pos, (char, prevPos) => {
+                this.onWorkstationTrigger(id, char, prevPos);
+            });
+            const region: MapRegion = { TopLeft: { ...pos }, BottomRight: { ...pos } };
+            this.conn.chatRoom.map.addLeaveRegionTrigger(region, (char) => {
+                this.onWorkstationLeave(id, char);
+            });
         }
     }
 
     private onWorkstationTrigger(id: number, char: API_Character, prevPos: { X: number; Y: number }): void {
-        console.log(`Workstation ${id} triggered by ${char.Name} (${char.MemberNumber}) from (${prevPos.X},${prevPos.Y})`);
+        const player = this.router.get(char.MemberNumber) as DairyPlayer | undefined;
+        if (!player) {
+            console.log(`Workstation ${id} triggered by unregistered ${char.Name} (${char.MemberNumber})`);
+            return;
+        }
+
+        const previousStation = this.playerWorkstations.get(player.identity.id);
+        this.assignPlayerToWorkstation(player.identity.id, id);
+        if (previousStation === id) return;
+
+        const detail =
+            previousStation !== undefined
+                ? `moved from workstation ${previousStation} to ${id}`
+                : `assigned to workstation ${id}`;
+        console.log(`Player ${player.getName()} (${player.identity.id}) ${detail}`);
+    }
+
+    private onWorkstationLeave(id: number, char: API_Character): void {
+        const player = this.router.get(char.MemberNumber) as DairyPlayer | undefined;
+        if (!player) return;
+
+        const assigned = this.playerWorkstations.get(player.identity.id);
+        if (assigned !== id) return;
+
+        this.playerWorkstations.delete(player.identity.id);
+        this.workstationOccupants.delete(id);
+        console.log(`Player ${player.getName()} (${player.identity.id}) left workstation ${id}`);
+    }
+
+    private assignPlayerToWorkstation(playerId: number, workstationId: number): void {
+        const previousStation = this.playerWorkstations.get(playerId);
+        if (previousStation !== undefined && previousStation !== workstationId) {
+            this.workstationOccupants.delete(previousStation);
+        }
+
+        const currentOccupant = this.workstationOccupants.get(workstationId);
+        if (currentOccupant !== undefined && currentOccupant !== playerId) {
+            this.playerWorkstations.delete(currentOccupant);
+        }
+
+        this.playerWorkstations.set(playerId, workstationId);
+        this.workstationOccupants.set(workstationId, playerId);
+    }
+
+    private findAvailableWorkstation(): number | null {
+        const orderedIds = Object.keys(workStations)
+            .map((k) => Number(k))
+            .sort((a, b) => a - b);
+        for (const id of orderedIds) {
+            if (!this.workstationOccupants.has(id)) {
+                return id;
+            }
+        }
+        return null;
     }
 
 

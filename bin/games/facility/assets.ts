@@ -1,3 +1,5 @@
+import { BC_AppearanceItem } from "bc-bot";
+
 export const makeBio = (
     leaderBoard?: string,
 ) =>
@@ -54,4 +56,105 @@ export const workStations: Record<number, ChatRoomMapPos> = {
     14: { X: 17, Y: 8 },
     15: { X: 22, Y: 8 },
     16: { X: 24, Y: 8 },
+};
+
+//#region Item definitions
+
+//REGULAR SET
+
+export const regularHarness: BC_AppearanceItem ={
+    Group: "ItemTorso2",
+    Name: "LeatherHarness",
+    Difficulty: 90,
+    Property: {TypeRecord: {typed: 0}},
+    Craft: {
+        Name: "NanoWeave harness",
+        Description: "Automatically tightens around the body, keeping the bust up and holes available",
+        Property: "Normal",
+        Color: undefined,
+        Lock: "",
+        Item: "LeatherHarness",
+        Private: true,
+        ItemProperty: undefined,
+        MemberName: "Azure Corporation",
+        MemberNumber: 1
+    }
+    
+}
+
+export const regularArmCuffs: BC_AppearanceItem ={
+    Group: "ItemArms",
+    Name: "LeatherDeluxeCuffs",
+    Difficulty: 90,
+    Property: {TypeRecord: {typed: 0}},
+    Color: ["#000000","#FFFFFF","#FFFFFF","Default"],
+    Craft: {
+        Name: "Regular's cuffs",
+        Description: "Adapts perfectly to the body with built in control system for facility interaction",
+        Property: "Normal",
+        Color: '#000000,#FFFFFF,#FFFFFF,Default',
+        Lock: "",
+        Item: "LeatherDeluxeCuffs",
+        Private: true,
+        ItemProperty: undefined,
+        MemberName: "Azure Corporation",
+        MemberNumber: 1
+    }
+    
+};
+
+export const regularLegCuffs: BC_AppearanceItem ={
+    Group: "ItemLegs",
+    Name: "LeatherDeluxeLegCuffs",
+    Difficulty: 90,
+    Color: ["Default","#000000","#FFFFFF","#FFFFFF","Default"],
+    Property: {TypeRecord: {typed: 0}},
+    Craft: {
+        Name: "Regular's cuffs",
+        Description: "Adapts perfectly to the body with built in control system for facility interaction",
+        Property: "Normal",
+        Color: 'Default,#000000,#FFFFFF,#FFFFFF,Default',
+        Lock: "",
+        Item: "LeatherDeluxeLegCuffs",
+        Private: true,
+        ItemProperty: undefined,
+        MemberName: "Azure Corporation",
+        MemberNumber: 1
+    }
+    
+};
+
+export const regularAnkleCuffs: BC_AppearanceItem ={
+    Group: "ItemFeet",
+    Name: "LeatherDeluxeAnkleCuffs",
+    Difficulty: 90,
+    Property: {TypeRecord: {typed: 0}},
+    Color: ["Default","#000000","#FFFFFF","#FFFFFF","Default"],
+    Craft: {
+        Name: "Regular's cuffs",
+        Description: "Adapts perfectly to the body with built in control system for facility interaction",
+        Property: "Normal",
+        Color: 'Default,#000000,#FFFFFF,#FFFFFF,Default',
+        Lock: "",
+        Item: "LeatherDeluxeAnkleCuffs",
+        Private: true,
+        ItemProperty: undefined,
+        MemberName: "Azure Corporation",
+        MemberNumber: 1
+    }
+    
+};
+
+export let latexUpperCatsuit: BC_AppearanceItem = {
+    Name: 'LatexCatsuit',
+    Group: 'Suit',
+    Color: ['#F4F4F4', '#000000', '#CECECE', '#000000'],
+    Property: {
+        TypeRecord: { typed: 0 },
+        Text: 'Regular',
+        Text2: '',
+        Text3: ''
+    },
+    Craft: null,
+    Difficulty: 69
 };
