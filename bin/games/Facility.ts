@@ -11,6 +11,8 @@ import {
     BC_Server_ChatRoomMessage,
     API_Map,
     API_Chatroom,
+    importBundle,
+    exportBundle,
 } from "bc-bot";
 import { remainingTimeString } from "../utils";
 import { wait } from "../hub/utils";
