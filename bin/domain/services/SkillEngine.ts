@@ -32,6 +32,20 @@ export class SkillEngine {
       const finalReward = this.applyRewardModifiers(skill, base.reward ?? 0, mods);
       const finalEffects = this.applyEffectModifiers(skill, base.effects ?? [], mods, player);
 
+      //Skill use event publication, to be used for SkillLog or other modules
+      const success = base.success ?? true;
+      player.ctx.bus.publish({
+        type: "player:skill.used",
+        payload: {
+          playerId: player.identity.id,
+          skillName: skill.skillName,
+          energySpent: effEnergy,
+          reward: finalReward,
+          success,
+          ...(base.logPayload ?? {})
+        },
+      });
+
       // commit: spend energy
       classing.state.currentEnergy -= effEnergy;
 

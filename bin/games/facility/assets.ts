@@ -21,8 +21,7 @@ permanent physiology modifications, subliminal trai-[REDACTED].
 To join just write *scanner
 Then use /bot select <className> to select your class from the list`;
 
-export const MAP = "N4IgKgngDgpiBcICCAbA7gQwgZxAGnAEsUZdFA6EEquptrvpoA9mA7N5x6j7n6t/gZUBb4K3aMhVHlI5UBc4aJbMJ5KV17lAHCDbNWnZTlyZ/cm1NmZAB+uny1ywcP9mlADHvXbD68rN7l/ntfRRkXcm8vD2C7a0CbVRCXZm93SO8XTUttFm0s4MZnJMZ3ACDXMq8ystcXIJYYh2psZvUUzxY2v3s4xspABfBm7D7JThS09wSGnqo+gB3B2eHJ8pXKlcm7A0pep0LwiI7vBN2zcxZBgWSxw/SCk8oAEyfsS2wnh4TS1Y6q9wyszQ5TK6cgPRgPF5vcGfa6dTh1BqPcGQsEfFywo5dWJsIKg5GvVHLX5rMqTbo4+KolHQ9EHFKTYGA3Ig96Dd4bI77CZkmz1XGyU7RBKibjBfzTSTOEacbhiIrw7EsfmJfLCu6imQMfInHW6+TCvWGnX5NSajhy1X3NW8M0isLGXZMThas71OhWp7UT0urWO0HvANUQAn4CGqAAJgBnYbDwdDjkMjwD7LDIdTYYAS5Go5nU6H0/ck8nc0GM1Ho+n08WMwXCx8cyGM5nIxno2nq4FBLW6xWmxXm43Mz2KwIAiYHn0AxPyEOh/2Z0OR4JQX0V1Pp/Om5GN8Pdun6H2BwfoxGTz2TxGTtue+Wh1G7+eH/mO/xtzf59Hjw/T0+cQIZ43D3/Msr0Xfh8BAAB5AAjAArGAAGMABcyBAB5AB6YQAZ6DQ95MOwrt8IIwiiPwwAn4EAH+AyPeQAEECowASEGIhiA3opMACKSMIwAmmC7QB6+G44jABb4Rik0ANAhRIDUThK7QBq+AeGShKEwA78HeJSlIDVxa3U+SkxU+TJMIvSnlU5TGIM/DTKeGS5KTLinhs95zNrPSjJ0rStJcpMhHeTzXOMgMjMAAUAfNcwKHhKAA0kpCwcqL5KqGL9L87T3kAMBBAAggULygeVLkvsoiHMswtACQgDLIuK1znIeIynhykrqqCwzKsLdK4vSoKqsauqnkizr7IkwA2+D6iTotkkbC0ANeh3gmgMpoIqaKvaxjACwQRaA2W/D3MYmbay2gNBKTAB0+rCxI9ikxWh5DqOwiqPOy7iPTAMHuIm61KeTSnmW86CM+h5aOYgMg3wuytL+gHAY+kjADIYQA6+GhwAcGBIr7a34vafJCkL6sAe/BMYDbGA267qGMAIAhCxx/CcoJh4cpJ+SibJwjADZABn8JppMidZkn6drGqwrCnqnlZ2tWcAVfAucLDH3hCwWGLFwtvKeeWrsY9npfq9muxV+TZYDQWSdVgNznw7WBb19WHhV4X9YI42HhAABfIA===";
-
+export const MAP = "N4IgKgngDgpiBcICCAbA7gQwgZxAGnAEsUZdFA6EEBkQamm8+hxp5lhwDEAB1jtzjgJY6MA1yNFiRjAHbSZM+hwAT4vnwYiAIZq3aJ9Wfvp9xIweQ3aLm3YA4QW9fJ37Z8+tHPLH10PIAHv+Ulff2chLTcXTzChPz8ZGPpRKO9dYzEE7xi44NSJCQAvgoKRQoLnBx9bSVsK9KZc4oAggAKGvMaWtol4wPjhXXShPKbhzqGR0RifLJ8+twGxptHhxbdM6V6EsLV21p3O7189ehnDF2NyBaWR530Dcg4z8Qvlq8Wb27lyI1CrUtE85q7QaA/blSrVJwPH6uP7FF5w8Zdfw9YJQsKwwbwzGI6JrSS9b7ovIhAEdParWLrVFnWEXErFEplawVaxVZmQx7JA5pELcjLIoInAb9HIAYNFOUm01mIuhVnFcq8gul6SiwrECtSrD6FgZJUK4v1JQ+0k2li54jyhq1JsCZg8yV1VtFbWWw28tvVaUVg2tTXI/qaHpNdQO20t1vOnvIABMY4w49qkwwQ7G4+nE/RACfgOYYCgAZwoFAwc1mUx96BmM+QFKWcwo+AXC4262W+J6q+ma62G4Wiyoe+2Q53Ey36yoi82i6X+7IpnIR/GVBOG42+8vV8u57JY4AF8Az+6+y+PBf7x+P28+Md3N8PR/PjcnD63JtULBX56Lk/z+eXP/ztrPiem4qIWYH/hBQ7rLIQFng+X5NhBv5QfiMEnhOQFrnBD6XtI+AgAA8gARgAVjAADGAAuZAgIudH0Qx6aAKvgMaAB/gMaAM/g7FcYxi6AE/AgA/wAJ6aAAggImACQg6YcYAaBCybJMYsRmgBjQCpMaqSpSlVpJVYAEV8XGrHSYAW+DpkZ0kcbxDGAC3wnbyQ0ABpDQxvJynqZpGmLoA1fAxt5GZOTGgAnQEFcb+ZZ6aAHfgEUxpFGaAAKAgBsgFW8WxVWclpXJi6RTF6ahX5YWdtlcaFXGgDJyFZJW2Yx0mdt5vlhdVDENdlWUjoASEDpu1GYNfR3VRcVOWOZVjUZsVhXVQ0AW5fllmGTGE1TdNjEyXNk1xilca9YuvWjV1K1OYAEEC7cNVa1VWs3zWt6abSOTV9ZVF2HVdVUFdFVbLRdMbrYtr0jems1zXRaWAG3wQNpV5PnfZZzU/ZDYUtVWgDb4GpqlIzGgA4oIAPSCAP0ggCjIIAfSCAO0ggCtIPlNkjqFC2w+mgBYIOm9mfQAMSl9MxkTeOACMggBDIIAkyCANignaAC0gnNE4AwyAi3RIm0yFVahYAmKAxvLst8N9ku8YrCudtTgALMNrUvidpGZZnRgBNMLD+uG0bcbU3xgBkMIAdfB24AODB8VLi5WWTkPrV9sOAPfgPsZn7eUA2FgBAEJ2/t0YAYCDB050dh9NIcRwx8WJYu8dViH6dh0nI7RzG9ks3n6bpyO6dMTnnbe5dMYl5ZFediZplU5Dme11Tmdpx3+X1xmJdh23GaSNgdE93GHet2PmdMQP9GjzGIAAL5AA===";
 export const Locker = 1050;
 export const WorkStation = 130;
 
@@ -56,6 +55,23 @@ export const workStations: Record<number, ChatRoomMapPos> = {
     14: { X: 17, Y: 8 },
     15: { X: 22, Y: 8 },
     16: { X: 24, Y: 8 },
+};
+
+export const dressingStations: Record<number, ChatRoomMapPos> = {
+    1: { X: 23, Y: 26 },
+    2: { X: 24, Y: 26 },
+    3: { X: 25, Y: 26 },
+    4: { X: 26, Y: 26 },
+    5: { X: 27, Y: 26 }
+};
+
+export const entryTeleportStations: Record<number, ChatRoomMapPos> = {
+    1: { X: 12, Y: 25 },
+    2: { X: 12, Y: 26 },
+    3: { X: 14, Y: 25 },
+    4: { X: 14, Y: 26 },
+    5: { X: 16, Y: 25 },
+    6: { X: 16, Y: 26 }
 };
 
 //#region Item definitions
@@ -157,4 +173,155 @@ export let latexUpperCatsuit: BC_AppearanceItem = {
     },
     Craft: null,
     Difficulty: 69
+};
+
+//STANDARD RESTRAINS
+
+export let highSteelArmsCuffs: BC_AppearanceItem = {
+    Name: "HighStyleSteelCuffs",
+    Group: "ItemArms",
+    Color: ['Default', 'Default', 'Default'],
+    Difficulty: 80,
+    Craft: {
+        Item: "HighStyleSteelCuffs",
+        Name: "MagnetSec ankle restrains",
+        Description: "Capatable of generating it's own magnetic field to interact with a variety of devices",
+        Private: true,
+        MemberNumber: 1,
+        MemberName: "Dairy Blue Farms",
+        Property: "Normal",
+        Color: "",
+        Lock: "",
+        ItemProperty: undefined
+    }
+};
+
+export let highSteelAnkleCuffs: BC_AppearanceItem = {
+    Name: "HighStyleSteelAnkleCuffs",
+    Group: "ItemFeet",
+    Color: ['Default', 'Default', 'Default'],
+    Difficulty: 80,
+    Craft: {
+        Item: "HighStyleSteelAnkleCuffs",
+        Name: "MagnetSec wrist restrains",
+        Description: "Capatable of generating it's own magnetic field to interact with a variety of devices",
+        Private: true,
+        MemberNumber: 1,
+        MemberName: "AzureCorp",
+        Property: "Normal",
+        Color: "",
+        Lock: "",
+        ItemProperty: undefined
+    }
+};
+
+export let shinyArmBinder: BC_AppearanceItem = {
+    Name: "ShinyArmbinder",
+    Group: "ItemArms",
+    Color: ['Default', 'Default', 'Default', 'Default'],
+    Difficulty: 80,
+    Property: {TypeRecord: {typed: 3}},
+    Craft: {
+        Item: "ShinyArmbinder",
+        Name: "Work Armbinder",
+        Description: "Custom made to fit perfectly, keeps the subject arms useless",
+        TypeRecord: { typed: 3 },
+        Private: true,
+        MemberNumber: 1,
+        MemberName: "Dairy Blue Farms",
+        Property: "Normal",
+        Color: "",
+        Lock: "",
+        ItemProperty: undefined
+    }
+}
+
+//WORK RESTRAINS 
+
+export let latexRespirator: BC_AppearanceItem = {
+    Name: "LatexRespirator",
+    Group: "ItemMouth3",
+    Color: undefined,
+    Difficulty: 80,
+    Property: {TypeRecord:{
+            "f": 2,
+            "g": 0,
+            "s": 1,
+            "m": 0,
+            "l": 1
+        }},
+    Craft: {
+        Color:"Default,Default,Default,Default,Default,#FB09BD",
+        Description:"Steadily pumps sensitivity enhancers mixed with aphrodisiac to the user",
+        Item:"LatexRespirator",
+        ItemProperty:{},
+        Lock:"",
+        MemberName:"Dairy Blue Farms",
+        MemberNumber:2,
+        Name: "Enhancer pump (production)",
+        Private:true,
+        Property:"Normal",
+        Type: null,
+        TypeRecord:{
+            "f": 2,
+            "g": 0,
+            "s": 1,
+            "m": 0,
+            "l": 1
+        }
+    }
+}
+
+export let pump: BC_AppearanceItem =  {
+    Name: 'LactationPump',
+    Group: 'ItemNipples',
+    Color: ['Default'],
+    Property: { SuctionLevel: 0 },
+    Craft: null,
+    Difficulty: 80
+};
+
+export let xCross: BC_AppearanceItem = {
+    Name: 'X-Cross',
+    Group: 'ItemDevices',
+    Color: ['Default', 'Default'],
+    Craft: null,
+    Difficulty: 80
+};
+
+export let sybian: BC_AppearanceItem = {
+    Name: 'Sybian',
+    Group: 'ItemDevices',
+    Color: ['Default'],
+    Property: {
+        //TypeRecord: [Object],
+        Mode: 'Off',
+        Intensity: -1,
+        //Effect: [Array]
+    },
+    Difficulty: 90,
+    Craft: {
+        Name: "",
+        Description: "",
+        Property: "Normal",
+        Color: "",
+        Lock: "",
+        Item: 'Sybian',
+        Private: false,
+        ItemProperty: undefined, 
+        MemberName: "Azure Corporation",
+        MemberNumber: 1
+    }
+};
+
+export let vibePlug: BC_AppearanceItem = {
+    Name: 'EggVibePlugXXL',
+    Group: 'ItemButt',
+    Color: ['Default'],
+    Property: {
+        Mode: 'Off',
+        Intensity: -1,
+    },
+    Craft: null,
+    Difficulty: 80
 };

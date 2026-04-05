@@ -5,5 +5,7 @@ export const FacilitySchema : GameSchema =
                "skills", 
                "economy", 
                "scoring",
-               "flags"] as const
+               "flags",
+               "skillLog",
+               "quality"] as const
 };

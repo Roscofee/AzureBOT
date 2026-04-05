@@ -8,6 +8,20 @@ import {
   makeSkillMaxLevel,
   makeAdjustXPGain,
 } from "../../domain/core/game-config";
+import { AnyModifier } from "../../domain/skills/Skill.types";
+
+export type StatDelta = {
+        target: "energy" | "xp" | "economy" | "score" | "production" | "custom";
+        op: "add" | "mult";
+        value: number;
+        remainingShifts: number;
+    };
+
+export type SkillModEntry = {
+        skillName?: string;           // optional: limit to one skill; omit to apply to all
+        modifier: AnyModifier;
+        remainingShifts: number;
+};
 
 export enum FacilityClassId {
   Volunteer = 1,
@@ -94,5 +108,8 @@ export const FacilityEvents = {
     addCycle: "facility:scoring.cycle.add" as const,
     commitShift: "facility:scoring.shift.commit" as const,
   },
-  // Add more grouped topics as needed
+  shift: {
+    adjustRecovery: "facility:shift.adjustRecovery" as const,
+    tick: "facility:shift.tick" as const,
+  },
 } as const;

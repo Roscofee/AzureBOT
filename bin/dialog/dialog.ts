@@ -1,7 +1,7 @@
 export const dialog = {
     "error": {
-        "body1": "([To join the farm you must have female chest, sorry for the inconvenience]",
-        "permission1": "(**[To join the farm you have to lower your items permission (bot can't interact with you), you can change it and try again]*",
+        "body1": "([To join the farm you must have female chest]",
+        "permission1": "(**[Warning: The bot currently cannot interact with you because of your permission settings. Please change them or whitelist the bot.]*",
         "permission2": "(**[To join the farm you have to give item permission to LACTATION PUMP, SYBIAN and LATEX RESPIRATOR, you can change it and try again]*",
         "scanFail": "**[Your scan was not succesful, try putting your hand over the (scanner) again]",
         "scanFail1": "(WARNING SUBJECT $name SCAN WAS NOT SUCCESSFUL",
@@ -16,8 +16,10 @@ export const dialog = {
         "notRegistered": "(**[You are not registered in the system, try using the (scanner)]**",
         "noEnchancer": "(**[You haven't selected any program, go back to the scanning area and select one]**",
         "notDressed": "(**[You are not wearing any uniform, go back to the locker to get dressed first]**",
-        "noClass": "(**[You haven't selected a class yet!]**",
-        "lockerClosed": "(\nThe locker doesn't open, seems like the facility is inactive for now"
+        "noClass": "(**[You haven't selected a class yet!, use /bot select <class name>]**",
+        "lockerClosed": "(\nThe locker doesn't open, seems like the facility is inactive for now",
+        "teleportClosed": "(\nThe station doesn't seem to activate at all, seems like the facility is inactive for now)",
+        "shiftInProgress": "(WARNING: shift in progress, try again when it is over)"
     },
   
     "general": {
@@ -60,7 +62,9 @@ export const dialog = {
         "shockUnitAttach": "([Several specialized arms descend from the ceiling, one holding your chin in place while the others attach a black device to your collar]",
         "phase1FinalMessage": "($class $name, ready to begin",
         "production": "($class $name has generated $production L, Milk quality: $quality %",
-        "productionSingle": "(Your production is $production L, Milk quality: $quality %"
+        "productionSingle": "(Your production is $production L, Milk quality: $quality %",
+        "dressingStart": "(DRESSING SQUENCE INITIATED, PLEASE DON'T MOVE)",
+        "dressingFinish": "(DRESSING SUCCESFUL, PLEASE STEP AWAY FROM THE LOCKER)"
     },
   
     "phase2": {

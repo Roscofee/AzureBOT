@@ -3,6 +3,8 @@ import { createEconomyModule } from "../../domain/modules/economy";
 import { createClassingModule } from "../../domain/modules/classing";
 import { createSkillsModule } from "../../domain/modules/skills";
 import { createScoringModule } from "../../domain/modules/scoring";
+import { createBullModule } from "../../domain/modules/bull";
+import { createQualityModule } from "../../domain/modules/quality";
 import type { PlayerRepo, PlayerRow } from "../../domain/ports/PlayerRepo";
 import type { MessagePort } from "../../domain/ports/MessagePort";
 import type { DomainEventBus } from "../../domain/ports/DomainEvenPort";
@@ -10,6 +12,7 @@ import { asGamePlayer, ensureModules, PlayerFor } from "../../domain/core/game-s
 import { FacilitySchema } from "./schema";
 import { createFlagsModule } from "../../domain/modules/flags";
 import { FacilityConfig } from "./config";
+import { createSkillLogModule } from "../../domain/modules/skillLog";
 
 export type DairyPlayer = PlayerFor<typeof FacilitySchema>;
 
@@ -23,6 +26,8 @@ export type DairyFlags = {
   regular?: boolean;
   superadmin?: boolean;
   active: boolean;
+  dressed: boolean;
+  originalAttire?: string;
 };
 
 export interface PlayerInitials {
@@ -57,14 +62,16 @@ export function buildDairyPlayer(identity: PlayerIdentity, deps: BuildPlayerDeps
   const init: PlayerInitials = {
       economy: dbInfo.currency,
       flags: {
-        regular: dbInfo.regular,
-        superadmin: dbInfo.superadmin,
+        regular: !!dbInfo.regular,
+        superadmin: !!dbInfo.superadmin,
         active: false
       }
   };
 
   // Attach required modules per schema
   core.attach(createSkillsModule());
+  core.attach(createQualityModule());
+  core.attach(createBullModule());
 
   const econStart = init.economy ?? 0;
   core.attach(createEconomyModule(econStart, repo, messages));
@@ -97,9 +104,11 @@ export function buildDairyPlayer(identity: PlayerIdentity, deps: BuildPlayerDeps
     )
   );
 
-  const flagsDefaults: DairyFlags = { regular: false, superadmin: false, active: false};
+  const flagsDefaults: DairyFlags = { regular: false, superadmin: false, active: false, dressed: false};
   const flags = createFlagsModule<DairyFlags>({ ...flagsDefaults, ...(init.flags ?? {}) });
   core.attach(flags);
+
+  core.attach(createSkillLogModule());
 
   // Ensure all required modules exist and narrow the type
   ensureModules(core, FacilitySchema);

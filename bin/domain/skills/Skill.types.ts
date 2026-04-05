@@ -15,6 +15,8 @@ export interface SkillResult {
   energy: number;            // base energy cost (usually = skill.energyCost)
   reward: number;            // base reward (before modifiers)
   effects?: SkillEffect[];   // side-effects to apply to modules
+  success?: boolean; //General boolean to mark is a skill is succesful. TRUE as default
+  logPayload?: Record<string, unknown>; //Telemtry data for logging or specific module uses
 }
 export interface Skill {
   skillId: number;
