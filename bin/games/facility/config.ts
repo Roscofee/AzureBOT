@@ -25,10 +25,12 @@ export type SkillModEntry = {
 
 export enum FacilityClassId {
   Volunteer = 1,
+  Gambler = 2
 }
 
 export const FacilityClasses = {
   Volunteer: { id: FacilityClassId.Volunteer, name: "Volunteer" },
+  RiskyHeifer: { id: FacilityClassId.Gambler, name: "Risky Heifer" },
 } as const;
 
 export const acceptedClassNames: string[] = Object.values(FacilityClasses).map((c) => c.name);
@@ -79,11 +81,17 @@ export const adjustXPGain = makeAdjustXPGain(xpGainRulesByClass);
 export const pricing: PricingConfig = {
   classPrices: {
     [FacilityClassId.Volunteer]: 0,
+    [FacilityClassId.Gambler]: 1000,
   },
   skill: {
     globalMultiplier: 1.0,
     overrides: {},
   },
+};
+
+export const starterSkillsByClass: Partial<Record<number, number[]>> = {
+  [FacilityClassId.Volunteer]: [1],
+  [FacilityClassId.Gambler]: [5],
 };
 
 export const FacilityConfig = {
@@ -95,6 +103,7 @@ export const FacilityConfig = {
   Limits,
   xpGainRulesByClass,
   pricing,
+  starterSkillsByClass,
   defaultXP,
 };
 

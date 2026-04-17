@@ -2,18 +2,17 @@ import { PlayerCore } from "../../../../domain/core/PlayerCore";
 import { IncomingMessage } from "../../../../domain/ports/MessagePort";
 import { Skill, SkillResult, ChatMessageType } from "../../../../domain/skills/Skill.types";
 
-
-export class Moo implements Skill {
+export class LiftChest implements Skill {
     skillId: number;
     skillName: string;
     skillLevel: number;
     description: string;
     upgrade_description: string;
 
-    validMessageTypes: ChatMessageType[] = ["Chat", "Emote"];
-    triggerTokens: string[] = ["moo", "mooing", "moo"];
-    energyCost: number = 10;
-    priority: number = 5;
+    validMessageTypes: ChatMessageType[] = ["Emote"];
+    triggerTokens: string[] = ["lift", "chest"];
+    energyCost: number = 0;
+    priority: number = 6;
 
     constructor(args: {
         skillId: number;
@@ -31,39 +30,39 @@ export class Moo implements Skill {
 
     validInput(data: IncomingMessage): boolean {
         const validMessageType = this.validMessageTypes.includes(data.Type);
-        const content = (data.Content ?? "").toLowerCase();
-        const canTrigger = content.includes(this.triggerTokens[0]);
-        return validMessageType && canTrigger;
+        if (!validMessageType) return false;
+
+        const input = (data.Content ?? "").toLowerCase();
+        const patterns: RegExp[] = [
+            /\b(lift|lifts|lifting|raise|raises|raising|thrust|thrusts|thrusting|puff|puffs|puffing)\s+(up\s+)?(his|her|their)\s+(chest|breasts?)\b/,
+            /\b(lift|lifts|lifting|raise|raises|raising|thrust|thrusts|thrusting|puff|puffs|puffing)\s+(up\s+)?(the)\s+(chest|breasts?)\b/,
+            /\b(push|pushes|pushing)\s+(his|her|their)\s+(chest|breasts?)\s+(out|forward)\b/,
+            /\b(push|pushes|pushing)\s+(the)\s+(chest|breasts?)\s+(out|forward)\b/,
+        ];
+
+        return patterns.some((p) => p.test(input));
     }
 
     canExecute(player: PlayerCore): boolean {
-        // Keep simple in current engine: energy cost is constant (engine checks availability)
-        // If you want dynamic cost by level, engine computes energy before this call.
-        return true;
+        const classing = player.tryGet<any>("classing");
+        return !!classing && (classing.state.maxEnergy ?? 0) > 0;
     }
 
     use(player: PlayerCore): SkillResult {
-        const baseIncrease = 3;
+        const baseIncrease = 8;
         const levelMultiplier = 1 + (0.1 * this.skillLevel);
         const scoreIncrease = baseIncrease * levelMultiplier;
 
         const name = player.identity.nickname ?? player.identity.name;
-        console.log(`${name} triggered Moo skill (increase ${scoreIncrease.toFixed(2)})`);
+        console.log(`${name} triggered LiftChest skill (increase ${scoreIncrease.toFixed(2)})`);
 
-        // Engine uses computeEnergy() for energy; return here for completeness
         return { energy: this.computeEnergy(player), reward: scoreIncrease };
     }
 
     computeEnergy(player: PlayerCore): number {
-        // Dynamic cost: base 10; if level > 1, add 5% of max energy
         const classing = player.tryGet<any>("classing");
-        const base = this.energyCost;
-        if (!classing) return base;
-        if (this.skillLevel > 1) {
-            const extra = Math.floor((classing.state.maxEnergy ?? 0) * 0.05);
-            return base + extra;
-        }
-        return base;
+        if (!classing) return this.energyCost;
+        return Math.max(1, Math.floor((classing.state.maxEnergy ?? 0) / 2));
     }
-
 }
+

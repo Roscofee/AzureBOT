@@ -6,6 +6,13 @@ import { IncomingMessage } from "../ports/MessagePort";
 import { AnyModifier, Skill, SkillEffect } from "../skills/Skill.types";
 
 export class SkillEngine {
+  /**
+   * Try to execute every skill that matches the incoming message, in priority order.
+   * Notes:
+   * - Skills are already sorted by priority in the SkillsModule.
+   * - Energy is checked per skill; failure to afford one skill does not block others.
+   * - Stops only after all eligible skills are processed, returning concatenated feedback.
+   */
   processToken(player: PlayerCore, data: IncomingMessage): string {
     const skillsMod  = player.get<SkillsModule>("skills");
     const classing   = player.tryGet<ClassingModule>("classing");
@@ -14,7 +21,9 @@ export class SkillEngine {
     const skills = skillsMod.list();
     const mods   = skillsMod.state.activeModifiers;
 
-    let used = false;
+    const warnings: string[] = [];
+    const messages: string[] = [];
+
     for (const skill of skills) {
       if (!skill.validInput(data)) continue;
 
@@ -24,13 +33,19 @@ export class SkillEngine {
       const effEnergy  = this.applyEnergyModifiers(skill, baseEnergy, mods);
 
       // energy check against classing (or another energy source)
-      if (!classing || classing.state.currentEnergy < effEnergy) continue;
+      if (!classing || classing.state.currentEnergy < effEnergy) {
+        if (classing && classing.state.currentEnergy < effEnergy) {
+          warnings.push(`Not enough energy to use ${skill.skillName}. Need ${effEnergy}, you have ${classing.state.currentEnergy})`);
+        }
+        continue;
+      }
       if (!skill.canExecute(player)) continue;
 
       // compute base
       const base = skill.use(player); // PURE
       const finalReward = this.applyRewardModifiers(skill, base.reward ?? 0, mods);
       const finalEffects = this.applyEffectModifiers(skill, base.effects ?? [], mods, player);
+      this.consumeAppliedModifiers(skill, skillsMod);
 
       //Skill use event publication, to be used for SkillLog or other modules
       const success = base.success ?? true;
@@ -55,12 +70,12 @@ export class SkillEngine {
       // commit: apply effects to modules
       for (const e of finalEffects) this.applyEffect(player, e);
 
-      used = true;
-      // you can return a message per skill use if you want
-      return `(You used ${skill.skillName}, energy: ${effEnergy}, reward: ${finalReward.toFixed(2)})`;
+      // collect per-skill feedback
+      messages.push(`You used ${skill.skillName}, energy cost: ${effEnergy}, reward: ${finalReward.toFixed(2)})`);
     }
 
-    return used ? "" : "NonSkill";
+    if (messages.length > 0 || warnings.length > 0) return [...messages, ...warnings].join("\n");
+    return "NonSkill";
   }
 
   private applyEnergyModifiers(skill: Skill, energy: number, mods: SkillsModule["state"]["activeModifiers"]) {
@@ -108,5 +123,18 @@ export class SkillEngine {
     if (e.type === "EMIT_EVENT") {
       player.ctx.bus.publish(e.event);
     }
+  }
+
+  private consumeAppliedModifiers(skill: Skill, skillsMod: SkillsModule) {
+    const kept: SkillsModule["state"]["activeModifiers"] = [];
+    for (const modifier of skillsMod.state.activeModifiers) {
+      if (modifier.usesRemaining != null && this.appliesTo(skill, modifier)) {
+        const remaining = modifier.usesRemaining - 1;
+        if (remaining > 0) kept.push({ ...modifier, usesRemaining: remaining });
+        continue;
+      }
+      kept.push(modifier);
+    }
+    skillsMod.state.activeModifiers = kept;
   }
 }

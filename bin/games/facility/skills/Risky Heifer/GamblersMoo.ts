@@ -2,8 +2,7 @@ import { PlayerCore } from "../../../../domain/core/PlayerCore";
 import { IncomingMessage } from "../../../../domain/ports/MessagePort";
 import { Skill, SkillResult, ChatMessageType } from "../../../../domain/skills/Skill.types";
 
-
-export class Moo implements Skill {
+export class GamblersMoo implements Skill {
     skillId: number;
     skillName: string;
     skillLevel: number;
@@ -11,9 +10,14 @@ export class Moo implements Skill {
     upgrade_description: string;
 
     validMessageTypes: ChatMessageType[] = ["Chat", "Emote"];
-    triggerTokens: string[] = ["moo", "mooing", "moo"];
+    triggerTokens: string[] = ["moo", "mooing"];
     energyCost: number = 10;
     priority: number = 5;
+
+    private criticalThresholdBase = 40;
+    private failureThreshold = 80;
+    private criticalMultiplier = 2;
+    private failureMultiplier = 0.5;
 
     constructor(args: {
         skillId: number;
@@ -32,38 +36,48 @@ export class Moo implements Skill {
     validInput(data: IncomingMessage): boolean {
         const validMessageType = this.validMessageTypes.includes(data.Type);
         const content = (data.Content ?? "").toLowerCase();
-        const canTrigger = content.includes(this.triggerTokens[0]);
+        const canTrigger = this.triggerTokens.some((token) => content.includes(token));
         return validMessageType && canTrigger;
     }
 
     canExecute(player: PlayerCore): boolean {
-        // Keep simple in current engine: energy cost is constant (engine checks availability)
-        // If you want dynamic cost by level, engine computes energy before this call.
         return true;
     }
 
     use(player: PlayerCore): SkillResult {
         const baseIncrease = 3;
         const levelMultiplier = 1 + (0.1 * this.skillLevel);
-        const scoreIncrease = baseIncrease * levelMultiplier;
+        const baseReward = baseIncrease * levelMultiplier;
+        const playerRoll = Math.floor(Math.random() * 100) + 1;
+        const criticalThreshold = Math.min(this.criticalThresholdBase + this.skillLevel, this.failureThreshold);
+        const isCritical = playerRoll <= criticalThreshold;
+        const isFailure = playerRoll > this.failureThreshold || playerRoll === 100;
+        const reward = isCritical
+            ? baseReward * this.criticalMultiplier
+            : isFailure
+                ? baseReward * this.failureMultiplier
+                : baseReward;
 
         const name = player.identity.nickname ?? player.identity.name;
-        console.log(`${name} triggered Moo skill (increase ${scoreIncrease.toFixed(2)})`);
+        if (isCritical) {
+            console.log(`${name} triggered GamblersMoo CRITICAL (${reward.toFixed(2)} milk, roll ${playerRoll}/${criticalThreshold})`);
+        } else if (isFailure) {
+            console.log(`${name} triggered GamblersMoo FAIL (${reward.toFixed(2)} milk, roll ${playerRoll}>${this.failureThreshold})`);
+        } else {
+            console.log(`${name} triggered GamblersMoo NORMAL (${reward.toFixed(2)} milk, roll ${playerRoll})`);
+        }
 
-        // Engine uses computeEnergy() for energy; return here for completeness
-        return { energy: this.computeEnergy(player), reward: scoreIncrease };
+        return { energy: this.computeEnergy(player), reward };
     }
 
     computeEnergy(player: PlayerCore): number {
-        // Dynamic cost: base 10; if level > 1, add 5% of max energy
         const classing = player.tryGet<any>("classing");
         const base = this.energyCost;
         if (!classing) return base;
         if (this.skillLevel > 1) {
-            const extra = Math.floor((classing.state.maxEnergy ?? 0) * 0.05);
+            const extra = Math.floor((classing.state.maxEnergy ?? 0) * 0.10);
             return base + extra;
         }
         return base;
     }
-
 }

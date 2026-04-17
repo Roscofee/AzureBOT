@@ -31,7 +31,7 @@ export class SkillUpgradeService {
     }
 
     const cur = economy.state.currency;
-    let msg = `("\nYour current class skills available for upgrade:\n\nYou can upgrade a skill with /bot upgradeSkill <skill name>\n\nCurrent balance: ${cur} ACs\n`;
+    let msg = `("\nYour current class skills available for upgrade:\n\nYou can upgrade a skill with /bot skillUpgrade <skill name>\n\nCurrent balance: ${cur} ACs\n`;
     for (const s of skills.state.skills) {
       const base = 1000 * (s.skillLevel ?? 1);
       const price = this.calcPrice(base, s.skillId);

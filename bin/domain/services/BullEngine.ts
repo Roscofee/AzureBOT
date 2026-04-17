@@ -3,6 +3,7 @@ import { DomainEventBus } from "../ports/DomainEvenPort";
 import { bullDialog } from "../../dialog/bullDialog";
 import { BullProgressEvent } from "../moduleTypes/Bull.types";
 import { BullModule } from "../modules/bull";
+import { ScoringModule } from "../modules/scoring";
 import { PlayerCore } from "../core/PlayerCore";
 
 type SkillUsedPayload = {
@@ -12,9 +13,19 @@ type SkillUsedPayload = {
   success?: boolean;
 };
 
+type BullRewardPayload = {
+  playerId?: number;
+  charge?: number;
+  workstationId?: number;
+  source?: string;
+};
+
 type PlayerGetter = (id: number) => PlayerCore | undefined;
+type BullStage = "silent" | "starting" | "halfway" | "nearReady" | "ready" | "none";
 
 export class BullEngine {
+  private lastAnnouncedStage = new Map<number, BullStage>();
+
   constructor(
     private bus: DomainEventBus,
     private messages: MessagePort,
@@ -26,14 +37,72 @@ export class BullEngine {
       const bull = this.getBull(payload.playerId);
       if (!bull) return;
       if (payload.success === false) {
-        const info = bull.fail();
-        this.handleFailMessages(payload.playerId, bull, info);
+        bull.removeCharge(5);
       } else {
-        const amount = this.computeChargeDelta(payload.reward);
-        const info = bull.addCharge(amount);
+        const info = bull.addCharge(5);
         this.handleChargeMessages(payload.playerId, bull, info);
       }
       this.publishProgress(payload.playerId, bull);
+    });
+
+    this.bus.subscribe("player:climax.orgasm", (evt) => {
+      const payload = evt.payload as { playerId?: number; bullState?: { ready?: boolean } };
+      const pid = payload?.playerId;
+      if (typeof pid !== "number") return;
+      const player = this.getPlayer(pid);
+      const bull = player?.tryGet<BullModule>("bull");
+      if (!bull) return;
+      const ready = payload?.bullState?.ready ?? bull.getState().ready;
+      if (ready) {
+        const res = bull.consume();
+        if (res.consumed) {
+          this.lastAnnouncedStage.delete(pid);
+          this.messages.whisper(pid, bullDialog.consume.release);
+        }
+        const scoring = player?.tryGet<ScoringModule>("scoring");
+        if (scoring) scoring.state.sessionScore += 20;
+      } else {
+        const info = bull.fail();
+        this.handleFailMessages(pid, bull, info);
+      }
+      this.publishProgress(pid, bull, { source: ready ? "climax.orgasm.ready" : "climax.orgasm.notReady" });
+    });
+
+    this.bus.subscribe("player:climax.resist", (evt) => {
+      const payload = evt.payload as { playerId?: number; bullState?: { ready?: boolean } };
+      const pid = payload?.playerId;
+      if (typeof pid !== "number") return;
+      const player = this.getPlayer(pid);
+      const bull = player?.tryGet<BullModule>("bull");
+      if (!bull) return;
+      const ready = payload?.bullState?.ready ?? bull.getState().ready;
+      if (ready) {
+        const info = bull.fail();
+        this.handleFailMessages(pid, bull, info);
+      } else {
+        const info = bull.addCharge(10);
+        this.handleChargeMessages(pid, bull, info);
+      }
+      this.publishProgress(pid, bull, { source: ready ? "climax.resist.ready" : "climax.resist.notReady" });
+    });
+
+    this.bus.subscribe("player:bull.reward", (evt) => {
+      const payload = evt.payload as BullRewardPayload;
+      const pid = payload?.playerId;
+      if (typeof pid !== "number") return;
+      const bull = this.getBull(pid);
+      if (!bull) return;
+
+      const amount = typeof payload.charge === "number" ? Math.max(0, Math.floor(payload.charge)) : 0;
+      if (amount <= 0) return;
+
+      const info = bull.addCharge(amount);
+      this.handleChargeMessages(pid, bull, info);
+      this.publishProgress(pid, bull, {
+        source: payload.source ?? "player:bull.reward",
+        workstationId: payload.workstationId,
+        charge: amount,
+      });
     });
 
     this.bus.subscribe("facility:shift.tick", (evt) => {
@@ -52,6 +121,7 @@ export class BullEngine {
     if (!bull) return;
     const res = bull.consume();
     if (res.consumed) {
+      this.lastAnnouncedStage.delete(playerId);
       this.messages.whisper(playerId, bullDialog.consume.release);
       this.publishProgress(playerId, bull, { reason, consumed: true });
     }
@@ -67,29 +137,9 @@ export class BullEngine {
     }
   }
 
-  private computeChargeDelta(reward?: number): number {
-    const base = reward ?? 0;
-    if (base <= 0) return 5;
-    return Math.min(25, Math.max(5, Math.floor(base / 5)));
-  }
-
   private handleChargeMessages(playerId: number, bull: BullModule, info: { progressed: number; becameReady: boolean }) {
-    const state = bull.state;
-    const cap = this.energyCap(bull);
-    if (info.becameReady) {
-      this.messages.whisper(playerId, bullDialog.status.chargeReady);
-      return;
-    }
-    const progress = state.energy / cap;
-    if (progress === 0) {
-      this.messages.whisper(playerId, bullDialog.status.silent);
-    } else if (progress >= 0.75) {
-      this.messages.whisper(playerId, bullDialog.clues.nearReady);
-    } else if (progress >= 0.5) {
-      this.messages.whisper(playerId, bullDialog.clues.halfway);
-    } else if (progress >= 0.25) {
-      this.messages.whisper(playerId, bullDialog.clues.starting);
-    }
+    const stage = info.becameReady ? "ready" : this.getStage(bull);
+    this.announceStage(playerId, stage);
   }
 
   private handleFailMessages(playerId: number, bull: BullModule, info: { fromReady: boolean }) {
@@ -98,15 +148,34 @@ export class BullEngine {
     } else {
       this.messages.whisper(playerId, bullDialog.status.failWeak);
     }
+    this.announceStage(playerId, this.getStage(bull));
+  }
+
+  private getStage(bull: BullModule): BullStage {
     const cap = this.energyCap(bull);
-    const progress = bull.state.energy / cap;
-    if (progress === 0) {
+    if (bull.state.ready) return "ready";
+    const progress = cap > 0 ? bull.state.energy / cap : 0;
+    if (progress === 0) return "silent";
+    if (progress >= 0.75) return "nearReady";
+    if (progress >= 0.5) return "halfway";
+    if (progress >= 0.25) return "starting";
+    return "none";
+  }
+
+  private announceStage(playerId: number, stage: BullStage) {
+    const lastStage = this.lastAnnouncedStage.get(playerId);
+    if (lastStage === stage) return;
+    this.lastAnnouncedStage.set(playerId, stage);
+
+    if (stage === "ready") {
+      this.messages.whisper(playerId, bullDialog.status.chargeReady);
+    } else if (stage === "silent") {
       this.messages.whisper(playerId, bullDialog.status.silent);
-    } else if (progress >= 0.75) {
+    } else if (stage === "nearReady") {
       this.messages.whisper(playerId, bullDialog.clues.nearReady);
-    } else if (progress >= 0.5) {
+    } else if (stage === "halfway") {
       this.messages.whisper(playerId, bullDialog.clues.halfway);
-    } else if (progress >= 0.25) {
+    } else if (stage === "starting") {
       this.messages.whisper(playerId, bullDialog.clues.starting);
     }
   }

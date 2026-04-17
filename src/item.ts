@@ -200,7 +200,17 @@ export class API_AppearanceItem {
 
     private doUpdate = (): void => {
         this.updateTask = undefined;
-        this.character.sendItemUpdate(this.data);
+        if (this._removed) {
+            // Removing an item is signaled by sending an update without a Name
+            // so the server takes the "remove" path instead of trying to update.
+            // Send the minimal payload (Target is added in updateCharacterItem).
+            (this.character as any).connection.updateCharacterItem({
+                Target: this.character.MemberNumber,
+                Group: this.data.Group,
+            });
+        } else {
+            this.character.sendItemUpdate(this.data);
+        }
         //this.character.sendAppearanceUpdate();
     };
 }

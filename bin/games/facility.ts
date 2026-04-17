@@ -24,6 +24,9 @@ import { DomainEventBus } from "../domain/ports/DomainEvenPort";
 import { buildDairyPlayer, DairyFlags } from "./facility/buildPlayer";
 import { SkillEngine } from "../domain/services/SkillEngine";
 import { ClassSelectionService } from "../domain/services/ClassSelectionService";
+import { ClassShopService } from "../domain/services/ClassShopService";
+import { SkillShopService } from "../domain/services/SkillShopService";
+import { SkillUpgradeService } from "../domain/services/SkillUpgradeService";
 import { BullEngine } from "../domain/services/BullEngine";
 import { PlayerRegisterService } from "../domain/services/PlayerGameRegistrationService";
 import { PlayerFor } from "../domain/core/game-schema";
@@ -36,11 +39,12 @@ import "./facility/skills/indext";
 import { SkillsModule } from "../domain/modules/skills";
 import { ClassingModule } from "../domain/modules/classing";
 import { FlagsModule } from "../domain/modules/flags";
-import { BOTPOS, dressingStations, entryTeleportStations, makeBio, MAP, regularUniform, workStations } from "./facility/assets";
+import { BOTPOS, dressingStations, entryTeleportStations, getNormalPlayerCommandGuide, makeBio, MAP, regularUniform, workStations } from "./facility/assets";
 import { activateRespirator, disableRespirator, dressCharacterWithRegularUniform, dressCharacterWithStandardUniform, dressEquipmentMale, dressEquipmentRegular, dressEquipmentStandard, freeCharacter, setCharacterVibeMode, undressCharacter } from "./facility/appereanceUtils";
 import { EconomyModule } from "../domain/modules/economy";
 import { ScoringModule } from "../domain/modules/scoring";
 import { QualityModule } from "../domain/modules/quality";
+import { BullModule } from "../domain/modules/bull";
 import { GlobalEventManager } from "./facility/events/GlobalEventManager";
 import { GlobalEventDef } from "./facility/events/globalEvents";
 import { AnyModifier } from "../domain/skills/Skill.types";
@@ -74,6 +78,9 @@ export class Facility{
     private bullEngine: BullEngine;
     private dbRegisterService: PlayerRegisterService;
     private selectClassService: ClassSelectionService;
+    private classShopService: ClassShopService;
+    private skillShopService: SkillShopService;
+    private skillUpgradeService: SkillUpgradeService;
     private globalEventManager: GlobalEventManager;
     /**
      * Track workstation assignment for registered players (MemberNumber -> workstationId)
@@ -205,7 +212,7 @@ export class Facility{
                         const text = (incoming.Content ?? "").trim();
                         const result = engine.processToken(player, incoming);
                         if (result && result !== "NonSkill") {
-                            this.messages.whisper(player.identity.id, result);
+                            this.messages.whisper(player.identity.id, `(\n` + result);
                         }
                     }
                 }
@@ -216,6 +223,15 @@ export class Facility{
         });
         this.dbRegisterService = new PlayerRegisterService(this.repo, this.messages);
         this.selectClassService = new ClassSelectionService(this.repo, this.messages, FacilityConfig);
+        this.classShopService = new ClassShopService(this.repo, this.messages, {
+            ...FacilityConfig.pricing,
+            starterSkillsByClass: FacilityConfig.starterSkillsByClass,
+        });
+        this.skillShopService = new SkillShopService(this.repo, this.messages, FacilityConfig.pricing);
+        this.skillUpgradeService = new SkillUpgradeService(this.repo, this.messages, {
+            ...FacilityConfig.pricing,
+            skillMaxLevel: FacilityConfig.skillMaxLevel,
+        });
 
         this.commandParser = new CommandParser(conn);
 
@@ -223,12 +239,17 @@ export class Facility{
         //Admin commands
         this.commandParser.register("farm", this.onCommandFarm);
         this.commandParser.register("capture", this.onCommandCapture);
+        this.commandParser.register("reward", this.onCommandReward);
         this.commandParser.register("test", this.onCommandTest);
 
         //Class selection/info display
         this.commandParser.register("select", this.onCommandSelect);
         this.commandParser.register("class", this.onCommandClass);
-        this.commandParser.register("skills", this.onCommandSkills);   
+        this.commandParser.register("skills", this.onCommandSkills);
+        this.commandParser.register("classShop", this.onCommandClassShop);
+        this.commandParser.register("skillShop", this.onCommandSkillShop);
+        this.commandParser.register("skillUpgrade", this.onCommandSkillUpgrade);
+        this.commandParser.register("help", this.onCommandHelp);
 
         conn.on("Message", this.onMessage);
         conn.on("RoomCreate", this.onChatRoomCreated);
@@ -237,7 +258,7 @@ export class Facility{
     }
 
     private onMessage = async (msg: API_Message) => {
-        
+
         if(msg.message.Type === "Emote"){
             
             //Legacy code here, at this point this is just trademark
@@ -293,17 +314,22 @@ export class Facility{
                 //Retrieve player class list
                 let playerClasses = await this.repo.obtainPlayerClass(player.identity.id, acceptedClassNames);
 
-                //If the list is empty, it means this is a newly registered player, we assign the base class first alond with skill moo
+                //If the list is empty, it means this is a newly registered player, we assign the base class and configured starter skills
                 //Then we obtain the updated list again
                 if(playerClasses.length === 0){
 
-                    this.repo.assignClassToPlayer(player.identity.id, FacilityClasses.Volunteer.id);
-                    this.repo.assignSkillToPlayer(player.identity.id, 1);
+                    await this.repo.assignClassToPlayer(player.identity.id, FacilityClasses.Volunteer.id);
+                    const starterSkills = FacilityConfig.starterSkillsByClass[FacilityClasses.Volunteer.id] ?? [];
+                    for (const skillId of starterSkills) {
+                        await this.repo.assignSkillToPlayer(player.identity.id, skillId);
+                    }
 
                     playerClasses = await this.repo.obtainPlayerClass(player.identity.id, acceptedClassNames);
 
                     console.log(`Player ${player.getName()} is new register, added class ${FacilityClasses.Volunteer.name}`);
-                    console.log(`Player ${player.getName()} is new register, added skill Moo`);
+                    if (starterSkills.length > 0) {
+                        console.log(`Player ${player.getName()} is new register, added starter skills ${starterSkills.join(", ")}`);
+                    }
 
                 }
 
@@ -318,6 +344,8 @@ export class Facility{
                 if(!this.commandPermission(msg.sender, false, true)){return;}
                 //For now restricting the usage to only main Handler
                 if(msg.sender.MemberNumber !== 56731){return;}
+
+                this.beginShift();
             }
 
             if(msg.message.Content.includes("claps her hands")){
@@ -325,6 +353,7 @@ export class Facility{
                 //For now restricting the usage to only main Handler
                 if(msg.sender.MemberNumber !== 56731){return;}
 
+                this.reliefProtocol();
             }
 
             if(msg.message.Content.includes("break")){
@@ -332,6 +361,7 @@ export class Facility{
                 //For now restricting the usage to only main Handler
                 if(msg.sender.MemberNumber !== 56731){return;}
 
+                this.endShift();
             }
 
             if(msg.message.Content.includes("check")){
@@ -339,6 +369,20 @@ export class Facility{
                 //For now restricting the usage to only main Handler
                 if(msg.sender.MemberNumber !== 56731){return;}
 
+                this.listProduction();
+            }
+
+            if(msg.message.Content.includes("release button")){
+
+                let player = this.router.get(msg.sender.MemberNumber);
+                const flags = player.get<FlagsModule<DairyFlags>>("flags");
+                const active = flags.get("active");
+
+                if(player && (this.playerWorkstations.has(msg.sender.MemberNumber) || active)){
+
+                    freeCharacter(msg.sender);
+
+                }
             }
 
         }
@@ -346,6 +390,64 @@ export class Facility{
         if(msg.message.Type === "Chat"){
 
         }
+
+        if(msg.message.Type === "Activity"){
+            //console.log(msg.message);
+
+            let activityName = msg.message.Content.replace(/\d+/g, '');
+
+            let player = this.router.get(msg.sender.MemberNumber);
+
+            if(player && this.playerWorkstations.has(msg.sender.MemberNumber)) {
+
+                const active = player.get<FlagsModule<DairyFlags>>("flags").get("active");
+
+                if(active && this.farmOpen){
+
+                    //Orgasm detection
+                    if(activityName === "Orgasm"){
+
+                        console.log(`[ORGASM] detected on: ${msg.sender.NickName || msg.sender.Name}`);
+
+                        //Fire player.climax:orgasm event
+                        const bull = player.tryGet<BullModule>("bull");
+                        if (!bull) return;
+                        const bullState = bull.getState();
+                        this.bus.publish({
+                            type: "player:climax.orgasm",
+                            payload: {
+                                playerId: player.identity.id,
+                                playerName: player.getName(),
+                                bullState,
+                            },
+                        });
+
+                    }
+
+                    //Orgasm resist detection
+                    if(activityName === "OrgasmResist"){
+
+                        console.log(`[ORGASM RESIST] detected on: ${msg.sender.NickName || msg.sender.Name}`);
+
+                        //Fire player.climax:resist event
+                        const bull = player.tryGet<BullModule>("bull");
+                        if (!bull) return;
+                        const bullState = bull.getState();
+                        this.bus.publish({
+                            type: "player:climax.resist",
+                            payload: {
+                                playerId: player.identity.id,
+                                playerName: player.getName(),
+                                bullState,
+                            },
+                        });
+
+                    }
+
+                }
+
+            }
+        }   
     }
 
     private async validCharacter(character: API_Character) : Promise<boolean>{
@@ -466,6 +568,69 @@ export class Facility{
         
     };
 
+    //Display available classes for purchase
+    private onCommandClassShop = async (
+        sender: API_Character,
+        msg: BC_Server_ChatRoomMessage,
+        args: string[],
+    ) => {
+
+         // Ensure the sender has permission (must be registered)
+        if (!this.commandPermission(sender, true)) return;
+
+        const player = this.router.get(sender.MemberNumber);
+
+        if(args.length < 1){
+            await this.classShopService.openShop(player as DairyPlayer, FacilityConfig.acceptedClassNames);
+            return;
+        }
+
+        await this.classShopService.buy(player as DairyPlayer, args.join(" ").trim(), FacilityConfig.acceptedClassNames);
+        
+    };
+
+    //Display available skills for purchase
+    private onCommandSkillShop = async (
+        sender: API_Character,
+        msg: BC_Server_ChatRoomMessage,
+        args: string[],
+    ) => {
+
+         // Ensure the sender has permission (must be registered)
+        if (!this.commandPermission(sender, true)) return;
+
+        const player = this.router.get(sender.MemberNumber);
+
+        if(args.length < 1){
+            await this.skillShopService.openShop(player as DairyPlayer);
+            return;
+        }
+
+        await this.skillShopService.buy(player as DairyPlayer, args.join(" ").trim());
+        
+    };
+
+    //Display available skill upgrades or upgrade one skill by name
+    private onCommandSkillUpgrade = async (
+        sender: API_Character,
+        msg: BC_Server_ChatRoomMessage,
+        args: string[],
+    ) => {
+
+         // Ensure the sender has permission (must be registered)
+        if (!this.commandPermission(sender, true)) return;
+
+        const player = this.router.get(sender.MemberNumber);
+
+        if(args.length < 1){
+            this.skillUpgradeService.openUpgradeList(player as DairyPlayer);
+            return;
+        }
+
+        await this.skillUpgradeService.upgrade(player as DairyPlayer, args.join(" ").trim());
+        
+    };
+
     //Display skills info
     private onCommandSkills = async (
         sender: API_Character,
@@ -481,6 +646,19 @@ export class Facility{
         this.messages.whisper(player.identity.id, player.get<SkillsModule>("skills").printSkillsInfo());
         
         
+    };
+
+    //Display normal player command guide
+    private onCommandHelp = async (
+        sender: API_Character,
+        msg: BC_Server_ChatRoomMessage,
+        args: string[],
+    ) => {
+
+         // Ensure the sender has permission (must be registered)
+        if (!this.commandPermission(sender, true)) return;
+
+        this.messages.whisper(sender.MemberNumber, getNormalPlayerCommandGuide());
     };
 
     //Open/close farm
@@ -519,7 +697,24 @@ export class Facility{
             this.messages.broadcast(dialog.general.closeFarm);
             this.messages.broadcast(dialog.general.closeFarm2);
 
-            //TODO free all active players
+            //Free all active players
+            for (const char of this.conn.chatRoom.characters) {
+                const player = this.router.get(char.MemberNumber) as DairyPlayer | undefined;
+                if (!player) continue;
+
+                const flags = player.get<FlagsModule<DairyFlags>>("flags");
+                const active = flags.get("active");
+                const assignedWorkstation = this.playerWorkstations.has(player.identity.id);
+
+                if (!active && !assignedWorkstation) continue;
+
+                freeCharacter(char);
+                flags.set("active", false);
+                this.playerWorkstations.delete(player.identity.id);
+            }
+            this.playerWorkstations.clear();
+            this.workstationOccupants.clear();
+             
         }
     };
 
@@ -567,6 +762,59 @@ export class Facility{
 
         target.mapTeleport(targetPos);
         this.messages.whisper(sender.MemberNumber, `Moved ${target.Name} to workstation ${workstationId}.`);
+    };
+
+    //Reward the player currently occupying a workstation
+    private onCommandReward = async (
+        sender: API_Character,
+        msg: BC_Server_ChatRoomMessage,
+        args: string[],
+    ) => {
+
+         // Ensure the sender has permission (must be admin)
+        if (!this.commandPermission(sender, false, true)) return;
+
+        if (args.length < 1) {
+            this.conn.reply(
+                msg,
+                "(Usage: reward <workstation 1-16>)",
+            );
+            return;
+        }
+
+        const workstationId = Number(args[0]);
+        if (!Number.isInteger(workstationId) || workstationId < 1 || workstationId > 16) {
+            this.messages.whisper(sender.MemberNumber, "Workstation must be a number between 1 and 16.");
+            return;
+        }
+
+        const playerId = this.workstationOccupants.get(workstationId);
+        if (playerId === undefined) {
+            this.messages.whisper(sender.MemberNumber, `No player assigned to workstation ${workstationId}.`);
+            return;
+        }
+
+        const player = this.router.get(playerId) as DairyPlayer | undefined;
+        if (!player) {
+            this.messages.whisper(sender.MemberNumber, `Registered player for workstation ${workstationId} not found.`);
+            this.workstationOccupants.delete(workstationId);
+            return;
+        }
+
+        this.bus.publish({
+            type: "player:bull.reward",
+            payload: {
+                playerId,
+                charge: 10,
+                workstationId,
+                source: "facility.reward",
+            },
+        });
+
+        this.messages.whisper(
+            sender.MemberNumber,
+            `Rewarded ${player.getName()} at workstation ${workstationId} with 10 bull charge.`,
+        );
     };
 
     //Test command
@@ -832,8 +1080,7 @@ export class Facility{
         const assigned = this.playerWorkstations.get(player.identity.id);
         if (assigned !== id) return;
 
-        this.playerWorkstations.delete(player.identity.id);
-        this.workstationOccupants.delete(id);
+        this.unassignPlayerFromWorkstation(player.identity.id, id);
         console.log(`Player ${player.getName()} (${player.identity.id}) left workstation ${id}`);
     }
 
@@ -845,11 +1092,25 @@ export class Facility{
 
         const currentOccupant = this.workstationOccupants.get(workstationId);
         if (currentOccupant !== undefined && currentOccupant !== playerId) {
-            this.playerWorkstations.delete(currentOccupant);
+            this.unassignPlayerFromWorkstation(currentOccupant, workstationId);
         }
 
         this.playerWorkstations.set(playerId, workstationId);
         this.workstationOccupants.set(workstationId, playerId);
+    }
+
+    private unassignPlayerFromWorkstation(playerId: number, workstationId?: number): void {
+        const assigned = this.playerWorkstations.get(playerId);
+        if (assigned === undefined) return;
+        if (workstationId !== undefined && assigned !== workstationId) return;
+
+        this.playerWorkstations.delete(playerId);
+        this.workstationOccupants.delete(assigned);
+
+        const player = this.router.get(playerId) as DairyPlayer | undefined;
+        if (!player) return;
+
+        player.get<FlagsModule<DairyFlags>>("flags").set("active", false);
     }
 
     private findAvailableWorkstation(): number | null {
@@ -877,6 +1138,69 @@ export class Facility{
         return dressingStations[stationId];
     }
 
+
+    /** Build a sorted production/quality snapshot for players currently at workstations */
+    private buildProductionRanking() {
+        const ranking: { id: number; name: string; className: string; production: number; quality: number }[] = [];
+
+        for (const [, playerId] of this.workstationOccupants) {
+            const player = this.router.get(playerId) as DairyPlayer | undefined;
+            if (!player) continue;
+
+            const scoring = player.tryGet<ScoringModule>("scoring");
+            if (!scoring) continue;
+
+            const classing = player.tryGet<ClassingModule>("classing");
+            const qualityMod = player.tryGet<QualityModule>("quality");
+
+            ranking.push({
+                id: playerId,
+                name: player.getName(),
+                className: classing?.state.name ?? "Unassigned",
+                production: scoring.totals().sessionScore ?? 0,
+                quality: qualityMod ? qualityMod.getNormalizedQuality() : 0,
+            });
+        }
+
+        return ranking.sort((a, b) => b.production - a.production);
+    }
+
+    /**
+     * Ranks all active workstation occupants by current shift production.
+     * Top 4 are broadcast; the rest receive a whisper with their own score.
+     */
+    public listProduction(): void {
+        const ranking = this.buildProductionRanking();
+        if (ranking.length === 0) {
+            this.messages.broadcast("(No active producers right now)");
+            return;
+        }
+
+        let rankingMessage = "(TOP PRODUCERS:\n";
+
+        for (let i = 0; i < ranking.length; i++) {
+            const entry = ranking[i];
+            const prodText = entry.production.toFixed(2);
+            const qualText = entry.quality.toString();
+
+            if (i < 4) {
+                const line = dialog.phase1.production
+                    .replace("$class", entry.className)
+                    .replace("$name", entry.name)
+                    .replace("$production", prodText)
+                    .replace("$quality", qualText);
+                rankingMessage += line + "\n";
+            } else {
+                const whisper = dialog.phase1.productionSingle
+                    .replace("$production", prodText)
+                    .replace("$quality", qualText);
+                this.messages.whisper(entry.id, whisper);
+            }
+        }
+
+        rankingMessage += ")";
+        this.messages.broadcast(rankingMessage);
+    }
 
 
     //#endregion
@@ -938,11 +1262,14 @@ export class Facility{
             if (mods.length) player.get<SkillsModule>("skills").applyModifiers(mods);
 
             // Apply quality decay based on last shift production
-            const quality = player.tryGet<QualityModule>("quality");
-            if (quality) {
-                const lastProd = this.lastShiftProduction.get(playerId) ?? 0;
-                if (lastProd > 0) {
-                    quality.applyProductionDecay(lastProd);
+            // Apply quality decay based on previous shift production, but skip on first shift
+            if (this.shiftCounter > 0) {
+                const quality = player.tryGet<QualityModule>("quality");
+                if (quality) {
+                    const lastProd = this.lastShiftProduction.get(playerId) ?? 0;
+                    if (lastProd > 0) {
+                        quality.applyProductionDecay(lastProd);
+                    }
                 }
             }
             this.lastShiftProduction.delete(playerId);
@@ -950,7 +1277,7 @@ export class Facility{
             // wake up gear and vibes
             activateRespirator(char);
             const vibeGroup: AssetGroupName = char.hasPenis() ? "ItemButt" : "ItemDevices";
-            setCharacterVibeMode(char, vibeGroup, 3); // 3 = Edge pattern on current assets
+            setCharacterVibeMode(char, vibeGroup, 1); // 3 = Edge pattern on current assets
 
             this.messages.whisper(playerId, dialog.phase2.dStarts);
             this.messages.whisper(playerId, dialog.phase2.release);
@@ -1054,6 +1381,8 @@ export class Facility{
             const mods = this.getSkillMods(playerId); // exclude expired modifier
             player.get<SkillsModule>("skills").applyModifiers(mods); // replaces activeModifiers
         }
+
+        this.listProduction();
     }
 
     private applyGlobalEffects(evt: GlobalEventDef) {
@@ -1163,12 +1492,17 @@ export class Facility{
         //50% of total session score direct increase
         const totalScoreIncrease = Math.floor(scoring.totals().sessionScore * 0.5);
 
-        const finalBase = base + totalScoreIncrease;
+        //Quality bonus: up to +10% of current base when quality is high
+        const qualityMod = player.tryGet<QualityModule>("quality");
+        const qualityMultiplier = qualityMod ? qualityMod.getQuality() : 1;
+
+        const finalBase = Math.floor((base + totalScoreIncrease) * qualityMultiplier);
 
         const finalPayout = Math.max(0, this.applyStat("economy", finalBase, playerId));
         if (finalPayout > 0) {
             econ.add(finalPayout);
-            this.messages.whisper(playerId, dialog.phase2.payRoll.replace("$wage", finalPayout.toString()));
+            const note = qualityMultiplier !== 1 ? ` (quality x${qualityMultiplier.toFixed(2)})` : "";
+            this.messages.whisper(playerId, dialog.phase2.payRoll.replace("$wage", finalPayout.toString()) + note);
         }
         return finalPayout;
     }

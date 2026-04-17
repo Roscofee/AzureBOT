@@ -29,7 +29,7 @@ export class GasIntake implements Skill {
   private roundSuccesses = 0;
   private baseSuccess: number;
   private currentSuccess: number;
-  private decayRate: number = 0.2; // 20 percentage points
+  private decayRate: number = 0.2; 
   private rewardModifier: number = 1;
   private successRateModifier: number = 0;
   private scoreIncrease: number = 1;
@@ -107,7 +107,7 @@ export class GasIntake implements Skill {
 
       this.roundSuccesses++;
 
-      const intervalReward = this.calculateReward();
+      const intervalReward = this.calculateReward(player);
       this.scoreIncrease += intervalReward * this.rewardModifier;
       this.reduceSuccessRate();
 
@@ -121,12 +121,12 @@ export class GasIntake implements Skill {
         `GASINTAKE: ${name} failed roll [${playerRoll}] number ${this.roundSuccesses} with threshold ${this.baseSuccess}`
       );
 
-      // Emit a whisper message via the domain event bus bridge
+      // Emit a broadcast message via the domain event bus bridge
       const evt: DomainEvent = {
-        type: FacilityEvents.message.whisper,
+        type: FacilityEvents.message.broadcast,
         payload: {
           playerId: player.identity.id,
-          text: `(${name} coughs and gets a bit dizzy...)`,
+          text: `(${name} coughs and gets a bit dizzy, overflowing the pump cups and loosing her current haul in the spill... [${playerRoll}/${this.baseSuccess}])`,
         },
       };
       // reset knobs before returning on failure
@@ -147,29 +147,46 @@ export class GasIntake implements Skill {
     if (this.currentSuccess < 0.2) this.currentSuccess = 0.2;
   }
 
-  private calculateReward(): number {
+  private calculateReward(player: PlayerCore): number {
     let reward = 0;
+    let whisperText: string | undefined;
+
     if (this.roundSuccesses > 5) this.roundSuccesses = 5;
+
     switch (this.roundSuccesses) {
       case 1:
+        whisperText = dialog.numbness.numbness4;
         reward = 2;
         break;
       case 2:
+        whisperText = dialog.numbness.numbness5;
         reward = 2;
         break;
       case 3:
+        whisperText = dialog.numbness.numbness6;
         reward = 3;
         break;
       case 4:
+        whisperText = dialog.numbness.numbness7;
         reward = 4;
         break;
       case 5:
+        whisperText = dialog.numbness.numbness8;
         reward = 5;
         break;
       default:
         reward = 0;
         break;
     }
+
+    if (whisperText) {
+      const evt: DomainEvent = {
+        type: FacilityEvents.message.whisper,
+        payload: { playerId: player.identity.id, text: whisperText },
+      };
+      player.ctx.bus.publish(evt);
+    }
+
     return reward;
   }
 

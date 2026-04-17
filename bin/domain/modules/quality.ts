@@ -53,6 +53,12 @@ export function createQualityModule(initialQuality = 50): QualityModule {
     return Math.min(clampMax, Math.max(clampMin, raw));
   };
 
+  const logQualityChange = (delta: number, newValue: number, reason?: string) => {
+    const name = player?.identity.nickname ?? player?.identity.name ?? "<unknown>";
+    const suffix = reason ? ` reason=${reason}` : "";
+    console.log(`[QUALITY] ${name} delta=${delta >= 0 ? "+" : ""}${delta} total=${newValue}${suffix}`);
+  };
+
   const mod: QualityModule = {
     key: "quality",
     state,
@@ -80,6 +86,29 @@ export function createQualityModule(initialQuality = 50): QualityModule {
         const scaled = Math.round(baseDelta * mult + add);
         mod.adjustQuality(scaled);
       }));
+
+
+      unsubscribers.push(bus.subscribe("player:climax.orgasm", (evt: DomainEvent) => {
+        if (!player) return;
+        const payload = evt.payload as { playerId?: number; bullState?: { ready?: boolean } };
+        if (payload?.playerId !== player.identity.id) return;
+        const ready = payload?.bullState?.ready ?? false;
+        if (ready) {
+          mod.adjustQuality(50);
+        } else {
+          mod.reduceQualityByHalf();
+        }
+      }));
+
+
+      unsubscribers.push(bus.subscribe("player:climax.resist", (evt: DomainEvent) => {
+        if (!player) return;
+        const payload = evt.payload as { playerId?: number };
+        if (payload?.playerId !== player.identity.id) return;
+        mod.adjustQuality(5);
+      }));
+
+
       unsubscribers.push(bus.subscribe("quality:modifier", (evt: DomainEvent) => {
         if (!player) return;
         const payload = evt.payload as { playerId?: number | "*"; modifier: QualityModifier; action: "add" | "remove" };
@@ -106,15 +135,35 @@ export function createQualityModule(initialQuality = 50): QualityModule {
     
     getQuality() { return getEffectiveScore() / 100; },
     
-    setQualityScore(value: number) { state.qualityScore = Math.max(0, value); },
+    setQualityScore(value: number) {
+      const newScore = Math.max(0, value);
+      const delta = newScore - state.qualityScore;
+      state.qualityScore = newScore;
+      logQualityChange(delta, state.qualityScore, "setQualityScore");
+    },
     
-    reduceQualityByHalf() { state.qualityScore = Math.max(0, state.qualityScore / 2); },
+    reduceQualityByHalf() {
+      const newScore = Math.max(0, state.qualityScore / 2);
+      const delta = newScore - state.qualityScore;
+      state.qualityScore = newScore;
+      logQualityChange(delta, state.qualityScore, "reduceQualityByHalf");
+    },
     
-    adjustQuality(amount: number) { state.qualityScore = Math.max(0, state.qualityScore + amount); },
+    adjustQuality(amount: number) {
+      const newScore = Math.max(0, state.qualityScore + amount);
+      const delta = newScore - state.qualityScore;
+      state.qualityScore = newScore;
+      logQualityChange(delta, state.qualityScore, "adjustQuality");
+    },
     
     isQualityAbove(threshold: number) { return getEffectiveScore() > threshold; },
     
-    resetQuality(value: number = 100) { state.qualityScore = Math.max(0, value); },
+    resetQuality(value: number = 100) {
+      const newScore = Math.max(0, value);
+      const delta = newScore - state.qualityScore;
+      state.qualityScore = newScore;
+      logQualityChange(delta, state.qualityScore, "resetQuality");
+    },
     
     qualityScoreToOutcomeSmooth(): OutcomeChances {
       const effective = getEffectiveScore();
@@ -147,12 +196,18 @@ export function createQualityModule(initialQuality = 50): QualityModule {
     },
     applyProductionDecay(shiftProduction: number) {
       const prod = Math.max(0, shiftProduction);
-      // Simple decay curve: low production has minimal decay, higher production ramps up
-      // decay = min(30, 0.1 * production) rounded
-      const baseDecay = Math.min(30, Math.round(prod * 0.1));
-      if (baseDecay <= 0) return 0;
-      mod.adjustQuality(-baseDecay);
-      return baseDecay;
+      // Decay scales from 5 (minimum) up to 20 as production approaches 25
+      // decay = clamp(5, 20, 5 + 15 * (prod / 25))
+      const decay = Math.round(Math.min(20, Math.max(5, 5 + 15 * (prod / 25))));
+      mod.adjustQuality(-decay);
+      if (player) {
+        player.ctx.bus.publish({
+          type: "facility:message.whisper",
+          payload: { playerId: player.identity.id, text: `(Quality decayed by ${decay} due to last shift production ${prod.toFixed(2)})` },
+        });
+        console.log(`[QUALITY] Player ${player.identity.id} prod=${prod.toFixed(2)} decay=${decay}`);
+      }
+      return decay;
     },
   };
 

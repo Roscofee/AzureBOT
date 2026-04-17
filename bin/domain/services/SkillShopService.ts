@@ -33,7 +33,7 @@ export class SkillShopService {
       return;
     }
 
-    let msg = "(\nSkills available for purchase:\n\nYou can purchase a skill with /bot buySkill [skill name]\n\n";
+    let msg = "(\nSkills available for purchase:\n\nUse /bot skillShop <skill name> to purchase a skill.\n\n";
     for (const s of list) {
       let req = `|| Requires: class level ${s.class_level_req}`;
       if (s.previous_skill_id) req += `, ${s.previous_skill_name} lv(${s.previous_skill_level_req})`;

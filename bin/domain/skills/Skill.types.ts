@@ -56,6 +56,7 @@ export interface EffectModifier {
 export interface BaseModifier {
   skillWhitelist?: string[];
   skillBlacklist?: string[];
+  usesRemaining?: number;
 }
 
 // 3) Single modifier type used everywhere
