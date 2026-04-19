@@ -32,11 +32,11 @@ export class CommandParser {
     }
 
     public register(cmd: string, cb: CommandCallback) {
-        this.commands.set(cmd, cb);
+        this.commands.set(cmd.trim().toLowerCase(), cb);
     }
 
     public unregister(cmd: string) {
-        this.commands.delete(cmd);
+        this.commands.delete(cmd.trim().toLowerCase());
     }
 
     public unregisterAll() {

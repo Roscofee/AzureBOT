@@ -245,14 +245,17 @@ export class Facility{
         //Class selection/info display
         this.commandParser.register("select", this.onCommandSelect);
         this.commandParser.register("class", this.onCommandClass);
-        this.commandParser.register("skills", this.onCommandSkills);
         this.commandParser.register("classShop", this.onCommandClassShop);
+        this.commandParser.register("skills", this.onCommandSkills);
         this.commandParser.register("skillShop", this.onCommandSkillShop);
         this.commandParser.register("skillUpgrade", this.onCommandSkillUpgrade);
+        this.commandParser.register("balance", this.onCommandBalance);
         this.commandParser.register("help", this.onCommandHelp);
 
         conn.on("Message", this.onMessage);
         conn.on("RoomCreate", this.onChatRoomCreated);
+        conn.on("CharacterEntered", this.onCharacterEntered);
+        conn.on("CharacterLeft", this.onCharacterLeft);
 
 
     }
@@ -545,6 +548,14 @@ export class Facility{
             return;
         }
 
+        const flags = player?.get<FlagsModule<DairyFlags>>("flags");
+        const active = flags?.get("active") === true;
+        const assignedWorkstation = this.playerWorkstations.get(sender.MemberNumber);
+        if (this.shiftInProgress && active && assignedWorkstation !== undefined) {
+            this.messages.whisper(sender.MemberNumber, dialog.error.classChangeInWorkstation);
+            return;
+        }
+
         // Delegate selection to service (will update modules and persist)
         await this.selectClassService.select(player as DairyPlayer, match.id, FacilityConfig.acceptedClassNames);
 
@@ -648,6 +659,26 @@ export class Facility{
         
     };
 
+    //Display current player balance
+    private onCommandBalance = async (
+        sender: API_Character,
+        msg: BC_Server_ChatRoomMessage,
+        args: string[],
+    ) => {
+
+         // Ensure the sender has permission (must be registered)
+        if (!this.commandPermission(sender, true)) return;
+
+        const player = this.router.get(sender.MemberNumber);
+        const economy = player?.tryGet<EconomyModule>("economy");
+        if (!economy) {
+            this.messages.whisper(sender.MemberNumber, "(ERROR: missing economy module)");
+            return;
+        }
+
+        this.messages.whisper(sender.MemberNumber, `(Current balance: ${economy.balance()} ACs)`);
+    };
+
     //Display normal player command guide
     private onCommandHelp = async (
         sender: API_Character,
@@ -749,16 +780,12 @@ export class Facility{
             return;
         }
 
-        const targetPos = workStations[workstationId];
-        if (!targetPos) {
+        const workstationPos = workStations[workstationId];
+        if (!workstationPos) {
             console.log(`ERROR: Workstation ${workstationId} has no coordinates defined.`);
             return;
         }
-
-        const player = this.router.get(target.MemberNumber) as DairyPlayer | undefined;
-        if (player) {
-            this.assignPlayerToWorkstation(player.identity.id, workstationId);
-        }
+        const targetPos = this.getWorkstationLandingPosition(workstationPos);
 
         target.mapTeleport(targetPos);
         this.messages.whisper(sender.MemberNumber, `Moved ${target.Name} to workstation ${workstationId}.`);
@@ -877,6 +904,38 @@ export class Facility{
         this.workstationOccupants.clear();
     };
 
+    private onCharacterEntered = (char: API_Character): void => {
+        this.clearStalePresenceState(char.MemberNumber, "entered");
+    };
+
+    private onCharacterLeft = (
+        sourceMemberNumber: number,
+        char: API_Character,
+        leaveMessage: string | null,
+        intentional: boolean,
+    ): void => {
+        this.clearStalePresenceState(sourceMemberNumber, "left");
+    };
+
+    private clearStalePresenceState(playerId: number, reason: "entered" | "left"): void {
+        const player = this.router.get(playerId) as DairyPlayer | undefined;
+        if (!player) return;
+
+        const flags = player.tryGet<FlagsModule<DairyFlags>>("flags");
+        const active = flags?.get("active") === true;
+        const assigned = this.playerWorkstations.get(playerId);
+
+        if (!active && assigned === undefined) return;
+
+        if (assigned !== undefined) {
+            this.unassignPlayerFromWorkstation(playerId, assigned);
+        } else if (flags) {
+            flags.set("active", false);
+        }
+
+        console.log(`Player ${player.getName()} (${playerId}) presence reset after ${reason}`);
+    }
+
     private setupRoom = async () => {
             try {
 
@@ -946,20 +1005,18 @@ export class Facility{
             return;
         }
 
-        //Find free workstation
         const workstationId = this.findAvailableWorkstation();
         if (workstationId === null) {
             this.messages.whisper(char.MemberNumber, `(No free workstations available.)`);
             return;
         }
 
-        const targetPos = workStations[workstationId];
-        if (!targetPos) {
+        const workstationPos = workStations[workstationId];
+        if (!workstationPos) {
             console.log(`ERROR: Workstation ${workstationId} has no coordinates defined.`);
             return;
         }
-
-        this.assignPlayerToWorkstation(player.identity.id, workstationId);
+        const targetPos = this.getWorkstationLandingPosition(workstationPos);
 
         char.mapTeleport(targetPos);
         //this.messages.whisper(char.MemberNumber, `Moved ${char.Name} to workstation ${workstationId}.`);
@@ -975,12 +1032,6 @@ export class Facility{
     };
 
     private async onDressingStationTrigger(id: number, char: API_Character): Promise<void> {
-        //Validate farm is open
-        if(!this.farmOpen){
-            this.messages.whisper(char.MemberNumber, dialog.error.teleportClosed);
-            return;
-        }
-
         //Validate player is registered
         const player = this.router.get(char.MemberNumber) as DairyPlayer | undefined;
         if (!player) {
@@ -989,12 +1040,20 @@ export class Facility{
             return;
         }
 
+        const flags = player.get<FlagsModule<DairyFlags>>("flags");
+        const dressed = flags.get("dressed") === true;
+
+        if (!this.farmOpen && !dressed) {
+            this.messages.whisper(char.MemberNumber, dialog.error.lockerClosed);
+            return;
+        }
+
         try {
 
            this.messages.whisper(char.MemberNumber, dialog.phase1.dressingStart);
-           if(player.get<FlagsModule<DairyFlags>>("flags").get("dressed")){
+           if(dressed){
 
-                const originalBundle =  importBundle(player.get<FlagsModule<DairyFlags>>("flags").get("originalAttire"));
+                const originalBundle =  importBundle(flags.get("originalAttire"));
 
                 if(!originalBundle){
                     console.log(`Player ${player.getName()} (${player.identity.id}) has no valid redress bundle, aborting`);
@@ -1008,20 +1067,20 @@ export class Facility{
                 console.log(`Player ${player.getName()} (${player.identity.id}) redressed with original attire at station ${id}`);
 
                 //Set dressed flag to false
-                player.get<FlagsModule<DairyFlags>>("flags").set("dressed", false);
+                flags.set("dressed", false);
                 //Set originalAttire to undefined
-                player.get<FlagsModule<DairyFlags>>("flags").set("originalAttire", undefined);
+                flags.set("originalAttire", undefined);
 
 
            }else{
                 const original = await undressCharacter(char);
 
                 //Copy orginal attire for redressing
-                player.get<FlagsModule<DairyFlags>>("flags").set("originalAttire", exportBundle(original));
+                flags.set("originalAttire", exportBundle(original));
                 //Set dressed flag to true
-                player.get<FlagsModule<DairyFlags>>("flags").set("dressed", true);
+                flags.set("dressed", true);
 
-                const isRegular = player.get<FlagsModule<DairyFlags>>("flags").get("regular") === true;
+                const isRegular = flags.get("regular") === true;
 
                 if(isRegular){
                     dressCharacterWithRegularUniform(char);
@@ -1055,6 +1114,11 @@ export class Facility{
         const player = this.router.get(char.MemberNumber) as DairyPlayer | undefined;
         if (!player) {
             console.log(`Workstation ${id} triggered by unregistered ${char.Name} (${char.MemberNumber})`);
+            return;
+        }
+
+        if (!this.farmOpen) {
+            this.messages.whisper(char.MemberNumber, dialog.error.farmclosed);
             return;
         }
 
@@ -1123,6 +1187,13 @@ export class Facility{
             }
         }
         return null;
+    }
+
+    private getWorkstationLandingPosition(workstationPos: { X: number; Y: number }): { X: number; Y: number } {
+        return {
+            X: workstationPos.X,
+            Y: workstationPos.Y + 1,
+        };
     }
 
     private getNextDressingStation(): ChatRoomMapPos | null {
@@ -1244,6 +1315,7 @@ export class Facility{
 
         this.shiftInProgress = true;
         this.messages.broadcast(dialog.phase2.shiftStart);
+        this.globalEventManager.fireNext();
 
         for (const [, playerId] of this.workstationOccupants) {
             const player = this.router.get(playerId) as DairyPlayer | undefined;
@@ -1394,7 +1466,7 @@ export class Facility{
             this.bus.publish({ type: FacilityEvents.shift.adjustRecovery, payload: { bonus: s.op === "add" ? s.value : undefined, multiplier: s.op === "mult" ? s.value : undefined, shifts } });
             }
             // xp/economy/score/custom: publish a bus event so other systems can subscribe
-            this.bus.publish({ type: "facility:global.statDelta", payload: { stat: s.target, op: s.op, value: s.value, shifts: evt.durationShifts ?? 1 } });
+            this.bus.publish({ type: "facility:global.statDelta", payload: { target: s.target, op: s.op, value: s.value, shifts: evt.durationShifts ?? 1 } });
         }
 
         // skills: push modifiers into activeModifiers via bus or directly

@@ -11,6 +11,7 @@ type RemoveFn = (evt: GlobalEventDef) => void;
 export class GlobalEventManager {
   private registry = new Map(globalEvents.map(e => [e.id, e]));
   private active: ActiveGlobalEvent[] = [];
+  private lastFiredEventId?: string;
 
   constructor(
     private messages: MessagePort,
@@ -23,7 +24,7 @@ export class GlobalEventManager {
 
   fireById(id: string, playerId?: number) {
     const def = this.registry.get(id);
-    if (!def) return false;
+    if (!def || this.isActive(id)) return false;
     this.activate(def, playerId);
     return true;
   }
@@ -56,6 +57,7 @@ export class GlobalEventManager {
   private activate(def: GlobalEventDef, playerId?: number) {
     const active: ActiveGlobalEvent = { ...def, remainingShifts: def.durationShifts ?? 1 };
     this.active.push(active);
+    this.lastFiredEventId = def.id;
     this.applyEffects(active, playerId); // playerId can be undefined (global) or a number (personal)
     for (const qm of def.quality ?? []) {
       const shifts = qm.remainingShifts ?? def.durationShifts ?? 1;
@@ -72,10 +74,18 @@ export class GlobalEventManager {
     if (def.onFireMessage) this.messages.broadcast(def.onFireMessage);
   }
 
+  private isActive(id: string): boolean {
+    return this.active.some(evt => evt.id === id);
+  }
+
   private pickNext(): GlobalEventDef | undefined {
     if (!globalEvents.length) return undefined;
-    const maxPriority = Math.max(...globalEvents.map(e => e.priority));
-    const top = globalEvents.filter(e => e.priority === maxPriority);
+    const inactive = globalEvents.filter(e => !this.isActive(e.id));
+    if (inactive.length === 0) return undefined;
+    const eligible = inactive.filter(e => e.id !== this.lastFiredEventId);
+    const pool = eligible.length > 0 ? eligible : inactive;
+    const maxPriority = Math.max(...pool.map(e => e.priority));
+    const top = pool.filter(e => e.priority === maxPriority);
     if (top.length === 1) return top[0];
 
     // weighted random among top

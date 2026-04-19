@@ -45,7 +45,7 @@ export class GamblersMoo implements Skill {
     }
 
     use(player: PlayerCore): SkillResult {
-        const baseIncrease = 3;
+        const baseIncrease = 2.3;
         const levelMultiplier = 1 + (0.1 * this.skillLevel);
         const baseReward = baseIncrease * levelMultiplier;
         const playerRoll = Math.floor(Math.random() * 100) + 1;

@@ -58,10 +58,10 @@ export const Limits: LimitsConfig = {
   } as Partial<Record<number, number>>,
 
   // Default maximum skill level (used by upgrade flows)
-  skillMaxLevelDefault: 20,
+  skillMaxLevelDefault: 10,
   // Optional per-skill overrides (keyed by skill_id)
   skillMaxLevelBySkill: {
-    // 101: 5,
+     8: 8,
   } as Partial<Record<number, number>>,
 };
 export const classMaxLevel = makeClassMaxLevel(Limits, getXPConfigFor);

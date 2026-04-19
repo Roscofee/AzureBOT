@@ -23,13 +23,20 @@ export class ClassShopService {
 
   /** List classes available for purchase and whisper the shop to the player. */
   async openShop(player: PlayerCore, acceptedClassNames: string[] = []) {
+    const economy = player.tryGet<any>("economy");
+    if (!economy) {
+      this.messages.whisper(player.identity.id, "(ERROR: missing modules)");
+      return;
+    }
+
     const items = await this.repo.obtainPlayerClassShop(player.identity.id, acceptedClassNames);
     if (!items || items.length === 0) {
       this.messages.whisper(player.identity.id, "(No classes to purchase!)");
       return;
     }
 
-    let msg = "(\nClasses available for purchase:\n\nUse /bot classShop <class name> to purchase a class.\nUse /bot select <class name> after buying or unlocking a class.\n\n";
+    const cur = typeof economy.balance === "function" ? economy.balance() : economy.state?.currency;
+    let msg = `(\nClasses available for purchase:\n\nUse /bot classShop <class name> to purchase a class.\nUse /bot select <class name> after buying or unlocking a class.\n\nCurrent balance: ${cur} ACs\n\n`;
     for (const it of items) {
       const price = this.calcPrice(it.class_id);
       msg += `|| ${it.class_name}, Price: ${price} Ac ||\n-> ${it.class_description}\n`;

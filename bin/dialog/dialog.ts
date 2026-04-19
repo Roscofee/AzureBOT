@@ -19,7 +19,8 @@ export const dialog = {
         "noClass": "(**[You haven't selected a class yet!, use /bot select <class name>]**",
         "lockerClosed": "(\nThe locker doesn't open, seems like the facility is inactive for now",
         "teleportClosed": "(\nThe station doesn't seem to activate at all, seems like the facility is inactive for now)",
-        "shiftInProgress": "(WARNING: shift in progress, try again when it is over)"
+        "shiftInProgress": "(WARNING: shift in progress, try again when it is over)",
+        "classChangeInWorkstation": "(WARNING: You cannot change classes during an active shift.)"
     },
   
     "general": {

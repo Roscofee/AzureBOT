@@ -10,6 +10,13 @@ export interface ClassingApi {
 }
 export type ClassingModule = PlayerModule & ClassingApi & { state: ClassProgress & { maxEnergy: number; currentEnergy: number } };
 
+export const BASE_CLASS_ENERGY = 30;
+
+export function calculateClassMaxEnergy(level: number, energyPerLevel: number, baseEnergy: number = BASE_CLASS_ENERGY): number {
+  const safeLevel = Math.max(1, level || 1);
+  return baseEnergy + (safeLevel - 1) * energyPerLevel;
+}
+
 export function createClassingModule(
   initial: Omit<ClassingModule["state"], "xpToLevel"> & { xpToLevel?: number },
   repo: PlayerRepo,
@@ -26,43 +33,37 @@ export function createClassingModule(
   let player: PlayerCore;
 
   const xpToLevel = initial.xpToLevel ?? Math.floor(cfg.baseXP * Math.pow(initial.level || 1, cfg.scaling));
+  const initialMaxEnergy = calculateClassMaxEnergy(initial.level ?? 1, cfg.energyPerLevel);
+  const initialCurrentEnergy = Math.min(initial.currentEnergy ?? initialMaxEnergy, initialMaxEnergy);
 
   const mod: ClassingModule = {
     key: "classing",
-    state: { ...initial, xpToLevel },
+    state: { ...initial, xpToLevel, maxEnergy: initialMaxEnergy, currentEnergy: initialCurrentEnergy },
 
     onAttach(p) { player = p; },
 
     gainXp(amount) {
       const maxLevel = cfg.getClassMaxLevel?.(this.state.classId) ?? 100;
       if (this.state.level >= maxLevel) return 0;
+      const startingLevel = this.state.level;
       const applied = cfg.adjustXPGain ? cfg.adjustXPGain(this.state.classId, this.state.level, amount) : amount;
       this.state.xp += applied;
       let levels = 0;
+      const scoring = player.tryGet<any>("scoring");
       while (this.state.xp >= this.state.xpToLevel) {
         this.state.xp -= this.state.xpToLevel;
         this.state.level++;
-        this.state.maxEnergy += cfg.energyPerLevel;
+        this.state.maxEnergy = calculateClassMaxEnergy(this.state.level, cfg.energyPerLevel);
         this.state.currentEnergy = Math.min(this.state.currentEnergy + cfg.energyPerLevel, this.state.maxEnergy);
 
         // recompute xpToLevel
         this.state.xpToLevel = Math.floor(cfg.baseXP * Math.pow(this.state.level, cfg.scaling));
 
-        messages.broadcast(`(\n🟩 ${this.state.name} ${player.identity.nickname ?? player.identity.name}\nHas reached level ${this.state.level}`);
-        const scoring = player.tryGet<any>("scoring");
-        void repo.updateClassProgress({
-          playerId: player.identity.id,
-          classId: this.state.classId,
-          level: this.state.level,
-          xp: this.state.xp,
-          bestScore: scoring?.state.bestScore ?? 0, // preserve current best score
-          score: scoring?.state.totalScore ?? 0,    // preserve current total score
-          energy: this.state.maxEnergy
-        });
-
+        messages.broadcast(`(\n🟩 ${this.state.name} ${player.identity.nickname || player.identity.name}\nHas reached level ${this.state.level}`);
         if (this.state.level >= maxLevel) {
           this.state.level = maxLevel;
           this.state.xp = 0;
+          levels = this.state.level - startingLevel;
           break;
         }
 
@@ -70,6 +71,8 @@ export function createClassingModule(
           // already broadcasted; keep if you want special formatting here
         }
         levels++;
+      }
+      if (levels > 0) {
       }
       return levels;
     },

@@ -23,8 +23,13 @@ export class SkillShopService {
   /** Show purchasable skills for the player's current class. */
   async openShop(player: PlayerCore) {
     const classing = player.tryGet<any>("classing");
+    const economy = player.tryGet<any>("economy");
     if (!classing) {
       this.messages.whisper(player.identity.id, "(ERROR: no class selected)");
+      return;
+    }
+    if (!economy) {
+      this.messages.whisper(player.identity.id, "(ERROR: missing modules)");
       return;
     }
     const list = await this.repo.obtainPlayerClassSkillShop(player.identity.id, classing.state.classId);
@@ -33,7 +38,8 @@ export class SkillShopService {
       return;
     }
 
-    let msg = "(\nSkills available for purchase:\n\nUse /bot skillShop <skill name> to purchase a skill.\n\n";
+    const cur = typeof economy.balance === "function" ? economy.balance() : economy.state?.currency;
+    let msg = `(\nSkills available for purchase:\n\nUse /bot skillShop <skill name> to purchase a skill.\n\nCurrent balance: ${cur} ACs\n\n`;
     for (const s of list) {
       let req = `|| Requires: class level ${s.class_level_req}`;
       if (s.previous_skill_id) req += `, ${s.previous_skill_name} lv(${s.previous_skill_level_req})`;

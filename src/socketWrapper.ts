@@ -15,9 +15,11 @@
 import { DefaultEventsMap, EventsMap } from "@socket.io/component-emitter";
 import { Socket } from "socket.io-client";
 
-// Don't send more than NUM_MESSAGES messages in TIME_INTERVAL milliseconds
-const NUM_MESSAGES = 15;
+// Keep a conservative overall send rate and smooth bursts so the server
+// doesn't see many messages landing in the same instant.
+const NUM_MESSAGES = 8;
 const TIME_INTERVAL = 1000;
+const MIN_SEND_INTERVAL = Math.ceil(TIME_INTERVAL / NUM_MESSAGES);
 
 /**
  * Wraps a socket.io socket to buffer messages, avoiding sending too many too quickly
@@ -30,6 +32,7 @@ export class SocketWrapper<
     private queue: [string, any[]][] = [];
     private lastSendTimes: number[] = [];
     private sendTimer?: NodeJS.Timeout;
+    private lastSentAt = 0;
 
     constructor(private socket: Socket<ListenEvents, EmitEvents>) {
         for (let i = 0; i < NUM_MESSAGES; i++) {
@@ -49,18 +52,21 @@ export class SocketWrapper<
 
     private processQueue = () => {
         if (this.sendTimer) return;
+        if (this.queue.length === 0) return;
 
-        while (this.queue.length > 0) {
-            const timeForLastMessageBatch = Date.now() - this.lastSendTimes[0];
-            if (timeForLastMessageBatch < TIME_INTERVAL) {
-                const waitFor = TIME_INTERVAL - timeForLastMessageBatch;
-                console.log(`Throttling messages for ${waitFor}ms`);
-                this.sendTimer = setTimeout(this.onSendTimer, waitFor);
-                return;
-            } else {
-                this.sendTail();
-            }
+        const now = Date.now();
+        const batchWait = Math.max(0, TIME_INTERVAL - (now - this.lastSendTimes[0]));
+        const spacingWait = Math.max(0, MIN_SEND_INTERVAL - (now - this.lastSentAt));
+        const waitFor = Math.max(batchWait, spacingWait);
+
+        if (waitFor > 0) {
+            console.log(`Throttling messages for ${waitFor}ms`);
+            this.sendTimer = setTimeout(this.onSendTimer, waitFor);
+            return;
         }
+
+        this.sendTail();
+        if (this.queue.length > 0) this.processQueue();
     };
 
     private onSendTimer = () => {
@@ -73,7 +79,8 @@ export class SocketWrapper<
 
         const args = this.queue.shift()!;
         this.lastSendTimes.shift();
-        this.lastSendTimes.push(Date.now());
+        this.lastSentAt = Date.now();
+        this.lastSendTimes.push(this.lastSentAt);
 
         this.socket.emit(
             args[0],

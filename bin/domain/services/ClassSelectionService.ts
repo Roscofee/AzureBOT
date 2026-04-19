@@ -2,10 +2,11 @@ import { PlayerCore } from "../core/PlayerCore";
 import { PlayerRepo } from "../ports/PlayerRepo";
 import { MessagePort } from "../ports/MessagePort";
 import { createSkill } from "../skills/SkillRegistry";
+import { calculateClassMaxEnergy } from "../modules/classing";
 
 type ClassGameConfig = {
   acceptedClassNames: string[];
-  getXPConfigFor: (classId?: number) => { baseXP: number; scaling: number };
+  getXPConfigFor: (classId?: number) => { baseXP: number; scaling: number; energyPerLevel: number };
 };
 
 export class ClassSelectionService {
@@ -46,8 +47,22 @@ export class ClassSelectionService {
       return;
     }
 
-    // Update classing module state
+    // Persist the current class snapshot before switching away so energy can't be refreshed by swapping classes
     const classing = player.get<any>("classing");
+    const scoring = player.tryGet<any>("scoring");
+    if (classing.state.classId !== -1 && classing.state.classId !== sel.class_id) {
+      await this.repo.updateClassProgress({
+        playerId: player.identity.id,
+        classId: classing.state.classId,
+        level: classing.state.level,
+        xp: classing.state.xp,
+        bestScore: scoring?.state.bestScore ?? 0,
+        score: scoring?.state.totalScore ?? 0,
+        energy: classing.state.currentEnergy,
+      });
+    }
+
+    // Update classing module state
     classing.state.classId = sel.class_id;
     classing.state.name = sel.class_name;
     classing.state.level = sel.class_level ?? 1;
@@ -56,9 +71,11 @@ export class ClassSelectionService {
     const cfg = this.gameConfig?.getXPConfigFor(sel.class_id);
     const base = cfg?.baseXP ?? 100;
     const scaling = cfg?.scaling ?? 1.5;
+    const energyPerLevel = cfg?.energyPerLevel ?? 10;
     classing.state.xpToLevel = Math.floor(base * Math.pow(classing.state.level || 1, scaling));
-    classing.state.maxEnergy = sel.class_energy ?? classing.state.maxEnergy ?? 0;
-    classing.state.currentEnergy = classing.state.maxEnergy;
+    const derivedMaxEnergy = calculateClassMaxEnergy(classing.state.level, energyPerLevel);
+    classing.state.maxEnergy = derivedMaxEnergy;
+    classing.state.currentEnergy = Math.min(sel.class_energy ?? classing.state.maxEnergy, classing.state.maxEnergy);
     (classing.state as any).description = sel.class_description;
 
     // Load current class skills from repo 
@@ -88,9 +105,9 @@ export class ClassSelectionService {
       classId: classing.state.classId,
       level: classing.state.level,
       xp: classing.state.xp,
-      bestScore: 0,
-      score: 0,
-      energy: classing.state.maxEnergy,
+      bestScore: scoring?.state.bestScore ?? 0,
+      score: scoring?.state.totalScore ?? 0,
+      energy: classing.state.currentEnergy,
     });
 
     const info = `${player.getName()} :: Class '${classing.state.name}' selected. Level ${classing.state.level}, XP ${classing.state.xp}/${classing.state.xpToLevel}, Energy ${classing.state.currentEnergy}/${classing.state.maxEnergy}`;

@@ -77,7 +77,7 @@ export function createScoringModule(
             xp: classing.state.xp,
             bestScore: this.state.bestScore,
             score: this.state.totalScore,
-            energy: classing.state.maxEnergy,
+            energy: classing.state.currentEnergy,
           });
         }
       }
@@ -90,4 +90,3 @@ export function createScoringModule(
     totals() { return this.state; },
   };
 }
-

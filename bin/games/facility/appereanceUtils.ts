@@ -103,7 +103,7 @@ export function freeCharacter(character: API_Character): void{
 
     if(itemArms && (itemArms.Name  === "LeatherDeluxeCuffs" || itemArms.Name === "HighStyleSteelCuffs")){
 
-        itemArms.Extended.SetType("Detached");
+        itemArms.Extended.SetType("None");
 
     }else{
         character.Appearance.RemoveItem("ItemArms");
