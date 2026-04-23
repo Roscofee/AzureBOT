@@ -55,12 +55,12 @@ export class Moo implements Skill {
     }
 
     computeEnergy(player: PlayerCore): number {
-        // Dynamic cost: base 10; if level > 1, add 5% of max energy
+        // Dynamic cost: base 10; if level > 1, add 10% of max energy
         const classing = player.tryGet<any>("classing");
         const base = this.energyCost;
         if (!classing) return base;
         if (this.skillLevel > 1) {
-            const extra = Math.floor((classing.state.maxEnergy ?? 0) * 0.05);
+            const extra = Math.floor((classing.state.maxEnergy ?? 0) * 0.1);
             return base + extra;
         }
         return base;

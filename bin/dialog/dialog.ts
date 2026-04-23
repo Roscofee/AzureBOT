@@ -65,7 +65,8 @@ export const dialog = {
         "production": "($class $name has generated $production L, Milk quality: $quality %",
         "productionSingle": "(Your production is $production L, Milk quality: $quality %",
         "dressingStart": "(DRESSING SQUENCE INITIATED, PLEASE DON'T MOVE)",
-        "dressingFinish": "(DRESSING SUCCESFUL, PLEASE STEP AWAY FROM THE LOCKER)"
+        "dressingFinish": "(DRESSING SUCCESFUL, PLEASE STEP AWAY FROM THE LOCKER)",
+        "stepOnTeleport": "(USE ANY DIAMONT SHAPE ON THE FLOOR TO ENTER YOUR WORKSTATION)"
     },
   
     "phase2": {

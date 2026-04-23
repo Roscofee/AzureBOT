@@ -2,7 +2,7 @@ import { AnyModifier } from "../../../domain/skills/Skill.types";
 import { QualityModifier } from "../../../domain/modules/quality";
 
 const formatEventMessage = (title: string | undefined, description: string): string =>
-  title ? `(\n${title}\n${description}` : `(\n${description}`;
+  title ? `(\n🌎 The stars bestow a new boon:\n${title}\n${description}` : `(\n${description}`;
 
 // Catalog of available global events
 export type GlobalEventDef = {
@@ -69,7 +69,7 @@ export const globalEvents: GlobalEventDef[] = [
     priority: 3,
     weight: 4,
     durationShifts: 1,
-    onFireMessage: formatEventMessage("Providence of the Azure Feline", "Take an inspiring breath of fresh lust. Gas Intake rewards are doubled this shift."),
+    onFireMessage: formatEventMessage("Providence of the Azure Feline", "Take an inspiring breath of fresh lust. GasIntake rewards are doubled this shift."),
     onEndMessage: formatEventMessage(undefined, "The Azure Feline's providence passes."),
     skills: [
       {
@@ -79,4 +79,50 @@ export const globalEvents: GlobalEventDef[] = [
       },
     ],
   },
+  {
+    id: "Alice",
+    name: "Dance under the moonlight",
+    description: "The Moon shines with pale radiance, blessing diligent labor with richer offerings. LiftChest rewards are increased by 50% this shift.",
+    priority: 3,
+    weight: 4,
+    durationShifts: 1,
+    onFireMessage: formatEventMessage(
+      "Dance under the moonlight",
+      "The Moon shines with pale radiance, blessing diligent labor with richer offerings. LiftChest rewards are increased by 50% this shift."
+    ),
+    onEndMessage: formatEventMessage(undefined, "The moonlight sinks beyond the horizon."),
+    skills: [
+      {
+        skillName: "LiftChest",
+        modifier: { rewardMultiplier: 1.5, skillWhitelist: ["LiftChest"] },
+        remainingShifts: 1,
+      },
+    ],
+  },
+  {
+    id: "Saturn",
+    name: "Tribute of Saturn's Rings",
+    description: "Saturn's rings draw finer work from every station. Shift quality generation is increased by 50%, but all skill rewards are reduced by 10% this shift.",
+    priority: 3,
+    weight: 4,
+    durationShifts: 1,
+    onFireMessage: formatEventMessage(
+      "Tribute of Saturn's Rings",
+      "Saturn's rings draw finer work from every station. Shift quality generation is increased by 50%, but all skill rewards are reduced by 10% this shift."
+    ),
+    onEndMessage: formatEventMessage(undefined, "Saturn's tribute is spent."),
+    skills: [
+      {
+        modifier: { rewardMultiplier: 0.9 },
+        remainingShifts: 1,
+      },
+    ],
+    quality: [
+      {
+        playerId: "*",
+        modifier: { mult: 1.5, successMult: 1.5, failMult: 1.5 },
+        remainingShifts: 1,
+      },
+    ],
+  }
 ];

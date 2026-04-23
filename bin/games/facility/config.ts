@@ -62,6 +62,7 @@ export const Limits: LimitsConfig = {
   // Optional per-skill overrides (keyed by skill_id)
   skillMaxLevelBySkill: {
      8: 8,
+     2: 6
   } as Partial<Record<number, number>>,
 };
 export const classMaxLevel = makeClassMaxLevel(Limits, getXPConfigFor);

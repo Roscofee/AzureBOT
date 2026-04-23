@@ -236,13 +236,17 @@ export class Facility{
         this.commandParser = new CommandParser(conn);
 
         //Room commands definition
-        //Admin commands
+        //Super admin commands
         this.commandParser.register("farm", this.onCommandFarm);
         this.commandParser.register("capture", this.onCommandCapture);
-        this.commandParser.register("reward", this.onCommandReward);
         this.commandParser.register("test", this.onCommandTest);
 
-        //Class selection/info display
+        //Handler commands
+        this.commandParser.register("reward", this.onCommandReward);
+        this.commandParser.register("inspect", this.onCommandInspect);
+
+
+        //Player display
         this.commandParser.register("select", this.onCommandSelect);
         this.commandParser.register("class", this.onCommandClass);
         this.commandParser.register("classShop", this.onCommandClassShop);
@@ -522,14 +526,13 @@ export class Facility{
         args: string[],
     ) => {
 
-         // Ensure the sender has permission (must be registered)
+        // Ensure the sender has permission (must be registered)
         if (!this.commandPermission(sender, true)) return;
 
+        const player = this.router.get(sender.MemberNumber);
+
         if(args.length < 1){
-            this.conn.reply(
-                msg,
-                "(Usage: select <class name>)",
-            );
+            await this.selectClassService.listPlayerClasses(player as DairyPlayer, FacilityConfig.acceptedClassNames);
             return;
         }
     
@@ -540,8 +543,6 @@ export class Facility{
         const match = Object.values(FacilityClasses).find(
             (c) => c.name.toLowerCase() === formattedInput.toLowerCase()
         );
-
-        const player = this.router.get(sender.MemberNumber);
 
         if(!match){
             this.conn.reply(msg, `(ERROR, class name not found)`);
@@ -839,8 +840,82 @@ export class Facility{
         });
 
         this.messages.whisper(
+            playerId,
+            `(Your actions have been noticed and the bull throbs in acknowlegment.)`,
+        );
+
+        this.messages.whisper(
             sender.MemberNumber,
             `Rewarded ${player.getName()} at workstation ${workstationId} with 10 bull charge.`,
+        );
+    };
+
+    //Inspect current production state for the player currently occupying a workstation
+    private onCommandInspect = async (
+        sender: API_Character,
+        msg: BC_Server_ChatRoomMessage,
+        args: string[],
+    ) => {
+
+         // Ensure the sender has permission (must be admin)
+        if (!this.commandPermission(sender, false, true)) return;
+
+        if (args.length < 1) {
+            this.conn.reply(
+                msg,
+                "(Usage: inspect <workstation 1-16>)",
+            );
+            return;
+        }
+
+        const workstationId = Number(args[0]);
+        if (!Number.isInteger(workstationId) || workstationId < 1 || workstationId > 16) {
+            this.messages.whisper(sender.MemberNumber, "Workstation must be a number between 1 and 16.");
+            return;
+        }
+
+        const playerId = this.workstationOccupants.get(workstationId);
+        if (playerId === undefined) {
+            this.messages.whisper(sender.MemberNumber, `No player assigned to workstation ${workstationId}.`);
+            return;
+        }
+
+        const player = this.router.get(playerId) as DairyPlayer | undefined;
+        if (!player) {
+            this.messages.whisper(sender.MemberNumber, `Registered player for workstation ${workstationId} not found.`);
+            this.workstationOccupants.delete(workstationId);
+            return;
+        }
+
+        const scoring = player.tryGet<ScoringModule>("scoring");
+        const quality = player.tryGet<QualityModule>("quality");
+        const bull = player.tryGet<BullModule>("bull");
+        const classing = player.tryGet<ClassingModule>("classing");
+
+        const cycleScore = scoring?.totals().cycleScore ?? 0;
+        const sessionScore = scoring?.totals().sessionScore ?? 0;
+        const qualityText = quality
+            ? `${quality.getNormalizedQuality()}% [base ${quality.state.qualityScore.toFixed(2)}]`
+            : "unavailable";
+        const bullText = bull
+            ? `${this.getBullStageLabel(bull)} ${bull.state.energy}/${this.getBullEnergyCap(bull)}${bull.state.ready ? " READY" : ""}`
+            : "unavailable";
+        const energyText = classing
+            ? `${classing.state.currentEnergy}/${classing.state.maxEnergy}`
+            : "unavailable";
+        const modifierLines = this.getInspectionModifierLines(playerId, player);
+
+        this.messages.whisper(
+            sender.MemberNumber,
+            `(` +
+            `INSPECT WORKSTATION ${workstationId}\n` +
+            `Player: ${player.getName()} [${playerId}]\n` +
+            `Class: ${classing?.state.name ?? "Unassigned"} Lv${classing?.state.level ?? "0"} | Energy: ${energyText}\n` +
+            `Production: shift ${cycleScore.toFixed(2)} L | session ${sessionScore.toFixed(2)} L\n` +
+            `Quality: ${qualityText}\n` +
+            `Bull: ${bullText}\n` +
+            `Active modifiers:\n${modifierLines.join("\n")}` +
+            `)`,
         );
     };
 
@@ -1091,7 +1166,7 @@ export class Facility{
                 console.log(`Player ${player.getName()} (${player.identity.id}) dressed at station ${id} with regular = ${isRegular}`);
            }
 
-           this.messages.whisper(char.MemberNumber, dialog.phase1.dressingFinish);
+           this.messages.whisper(char.MemberNumber, dialog.phase1.dressingFinish + "\n" + dialog.phase1.stepOnTeleport);
         } catch (err) {
             console.log(`Failed to dress player ${player.getName()} at station ${id}`, err);
         }
@@ -1545,6 +1620,86 @@ export class Facility{
             }
             return m.modifier;
         });
+    }
+
+    private getInspectionModifierLines(playerId: number, player: DairyPlayer): string[] {
+        const lines: string[] = [];
+
+        const skills = player.tryGet<SkillsModule>("skills");
+        for (const modifier of skills?.state.activeModifiers ?? []) {
+            lines.push(`- skill active: ${this.describeModifier(modifier)}`);
+        }
+
+        const quality = player.tryGet<QualityModule>("quality");
+        for (const modifier of quality?.modifiers ?? []) {
+            lines.push(`- quality: ${this.describeModifier(modifier)}`);
+        }
+
+        const bull = player.tryGet<BullModule>("bull");
+        for (const modifier of bull?.modifiers ?? []) {
+            lines.push(`- bull: ${this.describeModifier(modifier)}`);
+        }
+
+        for (const modifier of this.recoveryMods.get("*") ?? []) {
+            lines.push(`- recovery global: ${this.describeModifier(modifier)}`);
+        }
+        for (const modifier of this.recoveryMods.get(playerId) ?? []) {
+            lines.push(`- recovery player: ${this.describeModifier(modifier)}`);
+        }
+
+        for (const modifier of this.statDeltas.get("*") ?? []) {
+            lines.push(`- stat global: ${this.describeModifier(modifier)}`);
+        }
+        for (const modifier of this.statDeltas.get(playerId) ?? []) {
+            lines.push(`- stat player: ${this.describeModifier(modifier)}`);
+        }
+
+        for (const entry of this.skillMods.get("*") ?? []) {
+            lines.push(`- skill queued global${entry.skillName ? ` (${entry.skillName})` : ""}: ${this.describeModifier({ ...entry.modifier, remainingShifts: entry.remainingShifts })}`);
+        }
+        for (const entry of this.skillMods.get(playerId) ?? []) {
+            lines.push(`- skill queued player${entry.skillName ? ` (${entry.skillName})` : ""}: ${this.describeModifier({ ...entry.modifier, remainingShifts: entry.remainingShifts })}`);
+        }
+
+        return lines.length ? lines : ["- none"];
+    }
+
+    private describeModifier(modifier: object): string {
+        const parts = Object.entries(modifier as Record<string, unknown>)
+            .filter(([, value]) => value !== undefined)
+            .map(([key, value]) => `${key}=${this.describeModifierValue(value)}`);
+
+        return parts.length ? parts.join(", ") : "empty";
+    }
+
+    private describeModifierValue(value: unknown): string {
+        if (typeof value === "function") return "[function]";
+        if (Array.isArray(value)) return `[${value.join(", ")}]`;
+        if (value && typeof value === "object") {
+            try {
+                return JSON.stringify(value);
+            } catch {
+                return "[object]";
+            }
+        }
+        return String(value);
+    }
+
+    private getBullStageLabel(bull: BullModule): string {
+        if (bull.state.ready) return "ready";
+
+        const cap = this.getBullEnergyCap(bull);
+        const progress = cap > 0 ? bull.state.energy / cap : 0;
+
+        if (progress <= 0) return "silent";
+        if (progress >= 0.75) return "near ready";
+        if (progress >= 0.5) return "halfway";
+        if (progress >= 0.25) return "starting";
+        return "low";
+    }
+
+    private getBullEnergyCap(bull: BullModule): number {
+        return bull.state.threshold + bull.modifiers.reduce((acc, m) => acc + (m.energyMaxBonus ?? 0), 0);
     }
 
     private applyShiftPayout(playerId: number): number {

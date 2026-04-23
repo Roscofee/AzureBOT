@@ -2,7 +2,7 @@ import { PlayerCore } from "../../../../domain/core/PlayerCore";
 import { IncomingMessage } from "../../../../domain/ports/MessagePort";
 import { Skill, SkillResult, ChatMessageType } from "../../../../domain/skills/Skill.types";
 import { DomainEvent } from "../../../../domain/ports/DomainEvenPort";
-import { FacilityEvents } from "../../config";
+import { FacilityConfig, FacilityEvents } from "../../config";
 import { dialog } from "../../../../dialog/dialog";
 
 export class GasIntake implements Skill {
@@ -33,6 +33,7 @@ export class GasIntake implements Skill {
   private rewardModifier: number = 1;
   private successRateModifier: number = 0;
   private scoreIncrease: number = 1;
+  private failureLossMultiplier: number = 0.65;
   private failureMessage?: string;
 
   constructor(args: {
@@ -48,7 +49,9 @@ export class GasIntake implements Skill {
     this.description = args.description;
     this.upgrade_description = args.upgrade_description;
 
-    this.baseSuccess = Math.min(0.2 + 0.1 * this.skillLevel, 1);
+    this.baseSuccess = this.isMaxLevel()
+      ? 1
+      : Math.min(0.2 + 0.1 * this.skillLevel, 0.9);
     this.currentSuccess = this.baseSuccess;
     this.failureMessage = dialog.numbness.gasNumb;
   }
@@ -107,16 +110,20 @@ export class GasIntake implements Skill {
 
       this.roundSuccesses++;
 
-      const intervalReward = this.calculateReward(player);
-      this.scoreIncrease += intervalReward * this.rewardModifier;
+      const intervalReward = this.calculateReward(player) * this.rewardModifier;
+      this.scoreIncrease += intervalReward;
+      const reward = this.isMaxLevel() ? this.scoreIncrease : intervalReward;
       this.reduceSuccessRate();
 
       console.log(`GASINTAKE: ${name} new threshold ${this.currentSuccess}`);
       console.log(`GASINTAKE: ${name} reward ${intervalReward}`);
       console.log(`GASINTAKE: ${name} reward modifier ${this.rewardModifier}`);
+      this.successRateModifier = 0;
+      this.rewardModifier = 1;
+      return { energy: this.energyCost, reward };
     } else {
       this.gasNumb = true;
-      this.scoreIncrease *= -1;
+      this.scoreIncrease *= -this.failureLossMultiplier;
       console.log(
         `GASINTAKE: ${name} failed roll [${playerRoll}] number ${this.roundSuccesses} with threshold ${this.baseSuccess}`
       );
@@ -134,11 +141,6 @@ export class GasIntake implements Skill {
       this.rewardModifier = 1;
       return { energy: this.energyCost, reward: this.scoreIncrease, effects: [{ type: "EMIT_EVENT", event: evt }] };
     }
-
-    this.successRateModifier = 0;
-    this.rewardModifier = 1;
-
-    return { energy: this.energyCost, reward: this.scoreIncrease };
   }
 
   private reduceSuccessRate() {
@@ -188,6 +190,10 @@ export class GasIntake implements Skill {
     }
 
     return reward;
+  }
+
+  private isMaxLevel(): boolean {
+    return this.skillLevel >= FacilityConfig.skillMaxLevel(this.skillId);
   }
 
   reset(): void {

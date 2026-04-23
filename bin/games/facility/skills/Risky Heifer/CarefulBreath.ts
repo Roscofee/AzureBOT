@@ -16,7 +16,7 @@ export class CarefulBreath implements Skill {
   energyCost: number = 20;
   priority: number = 5;
 
-  private successRateIncrementBase = 0.1;
+  private successRateIncrementBase = 0.02;
   private rewardModifierBase = 0.6;
 
   constructor(args: {
@@ -57,6 +57,7 @@ export class CarefulBreath implements Skill {
 
     // Avoid attempting to help if GasIntake is currently numbed
     if ((gas as any).gasNumb) return false;
+    if ((gas as any).successRateModifier !== 0 || (gas as any).rewardModifier !== 1) return false;
 
     return true;
   }
@@ -76,7 +77,7 @@ export class CarefulBreath implements Skill {
     }
 
     const successRateIncrement = this.skillLevel * this.successRateIncrementBase;
-    const rewardModifier = this.rewardModifierBase - this.skillLevel * 0.1;
+    const rewardModifier = Math.max(0.65, 0.95 - this.skillLevel * 0.03);
 
     console.log(
       `CAREFULBREATH: ${name} setting GasIntake successRateModifier to ${successRateIncrement}`
@@ -95,4 +96,3 @@ export class CarefulBreath implements Skill {
 }
 
 export {};
-

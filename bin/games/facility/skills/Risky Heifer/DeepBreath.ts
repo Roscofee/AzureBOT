@@ -17,7 +17,7 @@ export class DeepBreath implements Skill {
   priority: number = 5;
 
   private successRateDecreaseBase = 0.2; // applied as negative to success rate
-  private rewardModifierBase = 1.1;
+  private rewardModifierBase = 0.9;
 
   constructor(args: {
     skillId: number;
@@ -90,4 +90,3 @@ export class DeepBreath implements Skill {
 }
 
 export {};
-

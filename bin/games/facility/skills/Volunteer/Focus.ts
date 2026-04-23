@@ -15,7 +15,7 @@ export class Focus implements Skill {
     energyCost: number = 40;
     priority: number = 10;
 
-    private rewardBoostBase = 0.10;
+    private rewardBoostBase = 0.39;
     private rewardBoostPerLevel = 0.01;
     private boostedSkills = ["Moo", "LiftChest"];
 
@@ -47,6 +47,7 @@ export class Focus implements Skill {
         const hasPendingFocus = skillsMod.state.activeModifiers.some((m) =>
             m.usesRemaining != null &&
             m.usesRemaining > 0 &&
+            m.rewardMultiplier != null &&
             m.skillWhitelist?.some((skillName) => this.boostedSkills.includes(skillName))
         );
 
@@ -57,7 +58,8 @@ export class Focus implements Skill {
         const skillsMod = player.tryGet<SkillsModule>("skills");
         if (!skillsMod) return { energy: this.energyCost, reward: 0, success: true };
 
-        const rewardMultiplier = 1 + this.rewardBoostBase + (this.rewardBoostPerLevel * this.skillLevel);
+        const rewardBoost = this.rewardBoostBase + (this.rewardBoostPerLevel * this.skillLevel);
+        const rewardMultiplier = 1 + rewardBoost;
         const focusModifier: AnyModifier = {
             rewardMultiplier,
             skillWhitelist: this.boostedSkills,
@@ -67,7 +69,7 @@ export class Focus implements Skill {
         skillsMod.state.activeModifiers.push(focusModifier);
 
         const name = player.identity.nickname ?? player.identity.name;
-        console.log(`${name} primed Focus for next milk skill (x${rewardMultiplier.toFixed(2)})`);
+        console.log(`${name} primed Focus for next milk skill (+${Math.round(rewardBoost * 100)}%)`);
 
         return {
             energy: this.energyCost,
@@ -77,4 +79,3 @@ export class Focus implements Skill {
 
     reset(): void {}
 }
-

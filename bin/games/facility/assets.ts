@@ -3,7 +3,7 @@ import { BC_AppearanceItem } from "bc-bot";
 export const normalPlayerCommandGuideLines = [
     "-/bot help : whispers this command guide to you",
     "-/bot balance : whispers your current AC balance",
-    "-/bot select <class name> : selects one of your unlocked classes",
+    "-/bot select [class name] : lists your unlocked classes or selects the named class",
     "-/bot class : shows your current class details and progress",
     "-/bot skills : whispers your current skills and their effects",
     "-/bot classShop [class name] : lists class shop options or buys the named class",
@@ -24,7 +24,7 @@ Welcome to Dairy Blue Farms, here we strive to offer a completely different milk
 All visitors are free to join as long as they comply with facility specifications please use the 
 (scanner) to check if you are eligible to join us for a shift or two.
 
-If you are, you will be put under the care of our certified handlers so just relax an enjoy an 
+If you are, you will be put under the care of our certified handlers, so just lay back an enjoy an 
 unique and relaxing experience!
 
 Disclaimer : Volunteers forteit the right to pursue legal action in the case of lose of self,
@@ -33,9 +33,9 @@ permanent physiology modifications, subliminal trai-[REDACTED].
 ℹ️ How To Play
 ==============
 To join just write *scanner
--Then use /bot select <className> to select your class from the list
+-Use /bot select to list your available classes, then /bot select <className> to choose one
 -Walk towards any locker to get your uniform
--Once you are dressed and have your class selected walk to the entry area over any diamon shape to get assigned a workstation
+-Once you are dressed and have your class selected walk to the entry area over any diamont shape to get assigned a workstation
 -To confirm your workstation simply walk one step back the pink area and enter again
 
 ℹ️ Room Commands

@@ -65,7 +65,8 @@ export class SkillEngine {
       classing.state.currentEnergy -= effEnergy;
 
       // commit: reward (commits to scoring)
-      if (scoring && finalReward > 0) scoring.addCycleScore(Math.floor(finalReward));
+      // Negative rewards are valid for penalty skills such as GasIntake failures.
+      if (scoring && finalReward !== 0) scoring.addCycleScore(Math.floor(finalReward));
 
       // commit: apply effects to modules
       for (const e of finalEffects) this.applyEffect(player, e);
