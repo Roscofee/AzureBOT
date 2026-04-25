@@ -106,7 +106,7 @@ export class GasIntake implements Skill {
     console.log(`GASINTAKE: ${name} normalized final success chance ${normalizedSuccessRate}`);
 
     if (playerRoll <= normalizedSuccessRate) {
-      console.log(`GASINTAKE: ${name} roll [${playerRoll}] success with threshold ${currentSucessRate}`);
+      console.log(`GASINTAKE: ${name} roll [${playerRoll}] success with threshold ${normalizedSuccessRate}`);
 
       this.roundSuccesses++;
 
@@ -125,7 +125,7 @@ export class GasIntake implements Skill {
       this.gasNumb = true;
       this.scoreIncrease *= -this.failureLossMultiplier;
       console.log(
-        `GASINTAKE: ${name} failed roll [${playerRoll}] number ${this.roundSuccesses} with threshold ${this.baseSuccess}`
+        `GASINTAKE: ${name} failed roll [${playerRoll}] number ${this.roundSuccesses} with threshold ${normalizedSuccessRate}`
       );
 
       // Emit a broadcast message via the domain event bus bridge
@@ -133,7 +133,7 @@ export class GasIntake implements Skill {
         type: FacilityEvents.message.broadcast,
         payload: {
           playerId: player.identity.id,
-          text: `(${name} coughs and gets a bit dizzy, overflowing the pump cups and loosing her current haul in the spill... [${playerRoll}/${this.baseSuccess}])`,
+          text: `(${name} coughs and gets a bit dizzy, overflowing the pump cups and loosing her current haul in the spill... [${playerRoll}/${normalizedSuccessRate}])`,
         },
       };
       // reset knobs before returning on failure

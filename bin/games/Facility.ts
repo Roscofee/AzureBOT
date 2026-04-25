@@ -1403,6 +1403,9 @@ export class Facility{
             // reset per‑shift state
             player.get<SkillsModule>("skills").resetAll();
             const classing = player.tryGet<ClassingModule>("classing");
+            if (classing && this.shiftCounter === 0) {
+                classing.state.currentEnergy = classing.state.maxEnergy;
+            }
 
             //Apply modifiers
             const mods = this.getSkillMods(playerId);
