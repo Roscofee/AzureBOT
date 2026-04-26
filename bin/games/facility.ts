@@ -117,6 +117,7 @@ export class Facility{
     private statDeltas = new Map<number | "*", StatDelta[]>();
     private skillMods = new Map<number | "*", SkillModEntry[]>();
     private lastShiftProduction = new Map<number, number>();
+    private selectedClassesThisSession = new Map<number, Set<number>>();
 
     public constructor(private conn: API_Connector){
 
@@ -557,8 +558,18 @@ export class Facility{
             return;
         }
 
-        // Delegate selection to service (will update modules and persist)
-        await this.selectClassService.select(player as DairyPlayer, match.id, FacilityConfig.acceptedClassNames);
+        const selectedClasses = this.selectedClassesThisSession.get(sender.MemberNumber) ?? new Set<number>();
+        const forceMaxEnergy = !selectedClasses.has(match.id);
+        await this.selectClassService.select(
+            player as DairyPlayer,
+            match.id,
+            FacilityConfig.acceptedClassNames,
+            { forceMaxEnergy }
+        );
+        if (forceMaxEnergy) {
+            selectedClasses.add(match.id);
+            this.selectedClassesThisSession.set(sender.MemberNumber, selectedClasses);
+        }
 
         player.get<ClassingModule>("classing").printClassInfo();
         
@@ -967,6 +978,7 @@ export class Facility{
         await this.setupCharacter();
         this.playerWorkstations.clear();
         this.workstationOccupants.clear();
+        this.selectedClassesThisSession.clear();
         this.addWorkstationTriggers();
         this.addDressingStationTriggers();
         this.addEntryTeleportStationTriggers();
@@ -977,6 +989,7 @@ export class Facility{
         await this.setupCharacter();
         this.playerWorkstations.clear();
         this.workstationOccupants.clear();
+        this.selectedClassesThisSession.clear();
     };
 
     private onCharacterEntered = (char: API_Character): void => {
@@ -1402,16 +1415,10 @@ export class Facility{
 
             // reset per‑shift state
             player.get<SkillsModule>("skills").resetAll();
-            const classing = player.tryGet<ClassingModule>("classing");
-            if (classing && this.shiftCounter === 0) {
-                classing.state.currentEnergy = classing.state.maxEnergy;
-            }
-
             //Apply modifiers
             const mods = this.getSkillMods(playerId);
             if (mods.length) player.get<SkillsModule>("skills").applyModifiers(mods);
 
-            // Apply quality decay based on last shift production
             // Apply quality decay based on previous shift production, but skip on first shift
             if (this.shiftCounter > 0) {
                 const quality = player.tryGet<QualityModule>("quality");
@@ -1427,7 +1434,7 @@ export class Facility{
             // wake up gear and vibes
             activateRespirator(char);
             const vibeGroup: AssetGroupName = char.hasPenis() ? "ItemButt" : "ItemDevices";
-            setCharacterVibeMode(char, vibeGroup, 1); // 3 = Edge pattern on current assets
+            setCharacterVibeMode(char, vibeGroup, 1); 
 
             this.messages.whisper(playerId, dialog.phase2.dStarts);
             this.messages.whisper(playerId, dialog.phase2.release);
@@ -1436,9 +1443,6 @@ export class Facility{
 
     //Relief protocol, recover energy, pay players, xp gain
     async reliefProtocol() {
-
-        // Broadcast message
-        this.messages.broadcast(dialog.phase2.break);
 
         if (!this.shiftInProgress) return;
 

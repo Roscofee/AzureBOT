@@ -33,7 +33,12 @@ export class ClassSelectionService {
   /**
    * Select a class by id or name; updates classing and skills modules and persists progress.
    */
-  async select(player: PlayerCore, classIdentifier: number | string, acceptedNames: string[] = []) {
+  async select(
+    player: PlayerCore,
+    classIdentifier: number | string,
+    acceptedNames: string[] = [],
+    options: { forceMaxEnergy?: boolean } = {}
+  ) {
     const allow = acceptedNames.length ? acceptedNames : (this.gameConfig?.acceptedClassNames ?? []);
     const classes = await this.repo.obtainPlayerClass(player.identity.id, allow);
 
@@ -75,7 +80,9 @@ export class ClassSelectionService {
     classing.state.xpToLevel = Math.floor(base * Math.pow(classing.state.level || 1, scaling));
     const derivedMaxEnergy = calculateClassMaxEnergy(classing.state.level, energyPerLevel);
     classing.state.maxEnergy = derivedMaxEnergy;
-    classing.state.currentEnergy = Math.min(sel.class_energy ?? classing.state.maxEnergy, classing.state.maxEnergy);
+    classing.state.currentEnergy = options.forceMaxEnergy
+      ? classing.state.maxEnergy
+      : Math.min(sel.class_energy ?? classing.state.maxEnergy, classing.state.maxEnergy);
     (classing.state as any).description = sel.class_description;
 
     // Load current class skills from repo 
