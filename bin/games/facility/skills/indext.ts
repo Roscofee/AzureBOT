@@ -7,6 +7,13 @@ import { GamblersMoo } from "./Risky Heifer/GamblersMoo";
 import { GasIntake } from "./Risky Heifer/GasIntake";
 import { CarefulBreath } from "./Risky Heifer/CarefulBreath";
 import { DeepBreath } from "./Risky Heifer/DeepBreath";
+import { MelodicMoo } from "./Moonstrel/MelodicMoo";
+import { DrivingChant } from "./Moonstrel/DrivingChant";
+import { RestoringVerse } from "./Moonstrel/RestoringVerse";
+import { GuardingVerse } from "./Moonstrel/GuardingVerse";
+import { GoldenCadence } from "./Moonstrel/GoldenCadence";
+import { Sing } from "./Moonstrel/Sing";
+import { Encore } from "./Moonstrel/Encore";
 
 registerSkill("Moo", Moo);
 registerSkill("Focus", Focus);
@@ -16,5 +23,12 @@ registerSkill("GamblersMoo", GamblersMoo);
 registerSkill("GasIntake", GasIntake);
 registerSkill("CarefulBreath", CarefulBreath);
 registerSkill("DeepBreath", DeepBreath);
+registerSkill("MelodicMoo", MelodicMoo);
+registerSkill("DrivingChant", DrivingChant);
+registerSkill("RestoringVerse", RestoringVerse);
+registerSkill("GuardingVerse", GuardingVerse);
+registerSkill("GoldenCadence", GoldenCadence);
+registerSkill("Sing", Sing);
+registerSkill("Encore", Encore);
 
 export{};

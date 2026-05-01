@@ -27,7 +27,7 @@ import { ClassSelectionService } from "../domain/services/ClassSelectionService"
 import { ClassShopService } from "../domain/services/ClassShopService";
 import { SkillShopService } from "../domain/services/SkillShopService";
 import { SkillUpgradeService } from "../domain/services/SkillUpgradeService";
-import { BullEngine } from "../domain/services/BullEngine";
+import { BullEngine } from "../domain/services/facility/BullEngine";
 import { PlayerRegisterService } from "../domain/services/PlayerGameRegistrationService";
 import { PlayerFor } from "../domain/core/game-schema";
 import { FacilitySchema } from "./facility/schema";
@@ -43,11 +43,13 @@ import { BOTPOS, dressingStations, entryTeleportStations, getNormalPlayerCommand
 import { activateRespirator, disableRespirator, dressCharacterWithRegularUniform, dressCharacterWithStandardUniform, dressEquipmentMale, dressEquipmentRegular, dressEquipmentStandard, freeCharacter, setCharacterVibeMode, undressCharacter } from "./facility/appereanceUtils";
 import { EconomyModule } from "../domain/modules/economy";
 import { ScoringModule } from "../domain/modules/scoring";
-import { QualityModule } from "../domain/modules/quality";
+import { QualityModifier, QualityModule } from "../domain/modules/quality";
 import { BullModule } from "../domain/modules/bull";
 import { GlobalEventManager } from "./facility/events/GlobalEventManager";
 import { GlobalEventDef } from "./facility/events/globalEvents";
 import { AnyModifier } from "../domain/skills/Skill.types";
+import { songBook, songNotes } from "./facility/events/songBook";
+import { ActiveSong, SongModule, SongNoteFamily, SongRecipe } from "../domain/modules/song";
 
 /**
  * Player type definition for this game, uses the configured schema
@@ -69,6 +71,7 @@ const listOfUsedItemGroups = _.uniq(listOfUsedItems.map(i => i[0]));
 
 
 export class Facility{
+    private recoveryMods = new Map<number | "*", { multiplier?: number; bonus?: number; remainingShifts: number; sourceId?: string }[]>();
     
     private repo: PlayerRepo;
     private bus: DomainEventBus;
@@ -112,12 +115,11 @@ export class Facility{
      * Shift energy recovery modifiers
      * remainingShifts: number of shifts the modifier stays active; defaults to 1 (expires next shift)
      */
-    private recoveryMods = new Map<number | "*", { multiplier?: number; bonus?: number; remainingShifts: number }[]>();
-
     private statDeltas = new Map<number | "*", StatDelta[]>();
     private skillMods = new Map<number | "*", SkillModEntry[]>();
     private lastShiftProduction = new Map<number, number>();
     private selectedClassesThisSession = new Map<number, Set<number>>();
+    private readonly moonstrelAuraSourcePrefix = "moonstrel:aura:";
 
     public constructor(private conn: API_Connector){
 
@@ -128,6 +130,7 @@ export class Facility{
             this.messages,
             this.bus,
             (evt) => this.applyGlobalEffects(evt),
+            (evt, shifts) => this.extendGlobalEffects(evt, shifts),
             (evt) => this.removeGlobalEffects(evt)
         );
         // Bridge game event topics to the MessagePort adapter
@@ -149,43 +152,94 @@ export class Facility{
         });
         
         this.bus.subscribe(FacilityEvents.shift.adjustRecovery, (evt) => {
-            const { playerId = "*", multiplier, bonus, shifts } = evt.payload as {
+            const { playerId = "*", multiplier, bonus, shifts, sourceId } = evt.payload as {
                 playerId?: number | "*";
                 multiplier?: number;
                 bonus?: number;
                 shifts?: number; // number of shifts the modifier remains active
+                sourceId?: string;
             };
             const remainingShifts = shifts && shifts > 0 ? shifts : 1;
             const list = this.recoveryMods.get(playerId) ?? [];
-            list.push({ multiplier, bonus, remainingShifts });
+            list.push({ multiplier, bonus, remainingShifts, sourceId });
             this.recoveryMods.set(playerId, list);
         });
 
+        this.bus.subscribe(FacilityEvents.shift.extendRecovery, (evt) => {
+            const { sourceId, shifts = 1 } = evt.payload as { sourceId?: string; shifts?: number };
+            if (!sourceId || shifts <= 0) return;
+            for (const [, list] of this.recoveryMods) {
+                for (const modifier of list) {
+                    if (modifier.sourceId === sourceId) modifier.remainingShifts += shifts;
+                }
+            }
+        });
+
         this.bus.subscribe("facility:global.statDelta", (evt) => {
-            const { playerId = "*", target, op, value, shifts } = evt.payload as {
+            const { playerId = "*", target, op, value, shifts, sourceId } = evt.payload as {
                 playerId?: number | "*";
                 target: StatDelta["target"];
                 op: StatDelta["op"];
                 value: number;
                 shifts?: number;
+                sourceId?: string;
             };
             const remainingShifts = shifts && shifts > 0 ? shifts : 1;
             const list = this.statDeltas.get(playerId) ?? [];
-            list.push({ target, op, value, remainingShifts });
+            list.push({ target, op, value, remainingShifts, sourceId });
             this.statDeltas.set(playerId, list);
             });
 
+        this.bus.subscribe(FacilityEvents.global.extendStatDelta, (evt) => {
+            const { sourceId, shifts = 1 } = evt.payload as { sourceId?: string; shifts?: number };
+            if (!sourceId || shifts <= 0) return;
+            for (const [, list] of this.statDeltas) {
+                for (const modifier of list) {
+                    if (modifier.sourceId === sourceId) modifier.remainingShifts += shifts;
+                }
+            }
+        });
+
         this.bus.subscribe("facility:global.skillModifier", (evt) => {
-            const { playerId = "*", skillName, modifier, shifts } = evt.payload as {
+            const { playerId = "*", skillName, modifier, shifts, sourceId } = evt.payload as {
                 playerId?: number | "*";
                 skillName?: string;
                 modifier: AnyModifier;
                 shifts?: number;
+                sourceId?: string;
             };
             const remainingShifts = shifts && shifts > 0 ? shifts : 1;
             const list = this.skillMods.get(playerId) ?? [];
-            list.push({ skillName, modifier, remainingShifts });
+            list.push({ skillName, modifier, remainingShifts, sourceId });
             this.skillMods.set(playerId, list);
+        });
+
+        this.bus.subscribe(FacilityEvents.global.extendSkillModifier, (evt) => {
+            const { sourceId, shifts = 1 } = evt.payload as { sourceId?: string; shifts?: number };
+            if (!sourceId || shifts <= 0) return;
+            for (const [, list] of this.skillMods) {
+                for (const entry of list) {
+                    if (entry.sourceId === sourceId) entry.remainingShifts += shifts;
+                }
+            }
+        });
+
+        this.bus.subscribe("facility:song.played", (evt) => {
+            const payload = evt.payload as { globalEventId?: string };
+            if (!payload?.globalEventId) return;
+            this.globalEventManager.fireById(payload.globalEventId);
+        });
+        this.bus.subscribe("facility:song.activated", (evt) => {
+            this.rebuildMoonstrelSongAuras();
+            this.notifyActivatedMoonstrelEffect(evt.payload as {
+                playerId?: number;
+                songName?: string;
+                kind?: "song" | "melody";
+                variant?: string;
+                stackLevel?: number;
+                remainingShifts?: number;
+                summary?: string;
+            });
         });
 
         const engine = new SkillEngine();
@@ -252,6 +306,8 @@ export class Facility{
         this.commandParser.register("class", this.onCommandClass);
         this.commandParser.register("classShop", this.onCommandClassShop);
         this.commandParser.register("skills", this.onCommandSkills);
+        this.commandParser.register("songbook", this.onCommandSongbook);
+        this.commandParser.register("songs", this.onCommandSongs);
         this.commandParser.register("skillShop", this.onCommandSkillShop);
         this.commandParser.register("skillUpgrade", this.onCommandSkillUpgrade);
         this.commandParser.register("balance", this.onCommandBalance);
@@ -671,6 +727,67 @@ export class Facility{
         
     };
 
+    private onCommandSongbook = async (
+        sender: API_Character,
+        msg: BC_Server_ChatRoomMessage,
+        args: string[],
+    ) => {
+
+         // Ensure the sender has permission (must be registered)
+        if (!this.commandPermission(sender, true)) return;
+
+        const lines = songBook.map((recipe) => {
+            const summary = recipe.kind === "aria"
+                ? recipe.ariaEffect?.summary ?? "No summary available."
+                : recipe.variants?.S?.summary ?? "No S variant summary available.";
+            return `- ${recipe.name} [${this.renderSongRecipe(recipe)}] <${recipe.kind}>\n  ${summary}`;
+        });
+
+        this.messages.whisper(
+            sender.MemberNumber,
+            `(\nSongbook:\n${lines.join("\n")}\n)`,
+        );
+    };
+
+    private onCommandSongs = async (
+        sender: API_Character,
+        msg: BC_Server_ChatRoomMessage,
+        args: string[],
+    ) => {
+
+         // Ensure the sender has permission (must be registered)
+        if (!this.commandPermission(sender, true)) return;
+
+        const player = this.router.get(sender.MemberNumber) as DairyPlayer | undefined;
+        if (!player) {
+            this.messages.whisper(sender.MemberNumber, dialog.error.notRegistered);
+            return;
+        }
+
+        const classing = player.tryGet<ClassingModule>("classing");
+        if (classing?.state.classId !== FacilityClasses.Moonstrel.id) {
+            this.messages.whisper(sender.MemberNumber, "(ERROR: /bot songs is only available to the Moonstrel class)");
+            return;
+        }
+
+        const song = player.tryGet<SongModule>("song");
+        if (!song) {
+            this.messages.whisper(sender.MemberNumber, "(ERROR: missing song module)");
+            return;
+        }
+
+        const performance = this.renderCurrentPerformance(song);
+        const songBuffer = this.renderStoredSongBuffer(song);
+        const activeSongs = this.renderActiveSongs(song);
+        const activeMelody = this.renderActiveMelody(song);
+        const activeMelodyCount = song.listActiveSongs().filter((activeSong) => activeSong.kind === "melody").length;
+
+        this.messages.whisper(
+            sender.MemberNumber,
+            `(\nCurrent performance:\n ${performance}\n\nReady songs [${song.listStoredSongs().length}/${song.getBufferCapacity()}]:\n${songBuffer}\n\nActive songs:\n${activeSongs}\n\nActive melodies [${activeMelodyCount}/${song.getMelodyCapacity()}]:\n${activeMelody}\n)`,
+        );
+    };
+
     //Display current player balance
     private onCommandBalance = async (
         sender: API_Character,
@@ -914,6 +1031,9 @@ export class Facility{
         const energyText = classing
             ? `${classing.state.currentEnergy}/${classing.state.maxEnergy}`
             : "unavailable";
+        const xpText = classing
+            ? `${classing.state.xp}/${classing.state.xpToLevel}`
+            : "unavailable";
         const modifierLines = this.getInspectionModifierLines(playerId, player);
 
         this.messages.whisper(
@@ -921,7 +1041,7 @@ export class Facility{
             `(` +
             `INSPECT WORKSTATION ${workstationId}\n` +
             `Player: ${player.getName()} [${playerId}]\n` +
-            `Class: ${classing?.state.name ?? "Unassigned"} Lv${classing?.state.level ?? "0"} | Energy: ${energyText}\n` +
+            `Class: ${classing?.state.name ?? "Unassigned"} Lv${classing?.state.level ?? "0"} | XP: ${xpText} | Energy: ${energyText}\n` +
             `Production: shift ${cycleScore.toFixed(2)} L | session ${sessionScore.toFixed(2)} L\n` +
             `Quality: ${qualityText}\n` +
             `Bull: ${bullText}\n` +
@@ -1221,6 +1341,7 @@ export class Facility{
         console.log(`Player ${player.getName()} (${player.identity.id}) ${detail}`);
 
         player.get<FlagsModule<DairyFlags>>("flags").set("active", true);
+        this.rebuildMoonstrelSongAuras();
 
         this.hookingUpSquence(char, player);
     }
@@ -1244,14 +1365,14 @@ export class Facility{
 
         const currentOccupant = this.workstationOccupants.get(workstationId);
         if (currentOccupant !== undefined && currentOccupant !== playerId) {
-            this.unassignPlayerFromWorkstation(currentOccupant, workstationId);
+            this.unassignPlayerFromWorkstation(currentOccupant, workstationId, false);
         }
 
         this.playerWorkstations.set(playerId, workstationId);
         this.workstationOccupants.set(workstationId, playerId);
     }
 
-    private unassignPlayerFromWorkstation(playerId: number, workstationId?: number): void {
+    private unassignPlayerFromWorkstation(playerId: number, workstationId?: number, rebuildAuras: boolean = true): void {
         const assigned = this.playerWorkstations.get(playerId);
         if (assigned === undefined) return;
         if (workstationId !== undefined && assigned !== workstationId) return;
@@ -1263,6 +1384,8 @@ export class Facility{
         if (!player) return;
 
         player.get<FlagsModule<DairyFlags>>("flags").set("active", false);
+        this.clearMoonstrelAuraModifiersForPlayer(player);
+        if (rebuildAuras) this.rebuildMoonstrelSongAuras();
     }
 
     private findAvailableWorkstation(): number | null {
@@ -1417,7 +1540,7 @@ export class Facility{
             player.get<SkillsModule>("skills").resetAll();
             //Apply modifiers
             const mods = this.getSkillMods(playerId);
-            if (mods.length) player.get<SkillsModule>("skills").applyModifiers(mods);
+            player.get<SkillsModule>("skills").applyModifiers(mods);
 
             // Apply quality decay based on previous shift production, but skip on first shift
             if (this.shiftCounter > 0) {
@@ -1439,6 +1562,8 @@ export class Facility{
             this.messages.whisper(playerId, dialog.phase2.dStarts);
             this.messages.whisper(playerId, dialog.phase2.release);
         }
+
+        this.rebuildMoonstrelSongAuras();
     }
 
     //Relief protocol, recover energy, pay players, xp gain
@@ -1456,6 +1581,7 @@ export class Facility{
                 players: Array.from(this.workstationOccupants.values()),
             },
         });
+        this.rebuildMoonstrelSongAuras();
 
         for (const [, playerId] of this.workstationOccupants) {
             const player = this.router.get(playerId) as DairyPlayer | undefined;
@@ -1472,9 +1598,13 @@ export class Facility{
 
             //Base score increase using body size
             this.increaseProductionBase(playerId);
+            const melodyShiftEffects = this.getActiveMelodyShiftEffects(playerId);
 
             // scoring → currency → XP
             const scoring = player.tryGet<ScoringModule>("scoring");
+            if (scoring && melodyShiftEffects.scoreBonus > 0) {
+                scoring.addCycleScore(melodyShiftEffects.scoreBonus);
+            }
             if (scoring) {
                 const cycle = scoring.totals().cycleScore ?? 0;
                 this.lastShiftProduction.set(playerId, cycle);
@@ -1484,14 +1614,16 @@ export class Facility{
             // Currency and XP via dedicated helpers (with stat mods applied)
             this.applyShiftPayout(playerId);
             this.applyShiftXp(playerId);
+            this.applyActiveMelodyXp(playerId, melodyShiftEffects.xpBonus);
 
             // Energy recovery (half max, modified via computeRecovery)
             const classing = player.tryGet<ClassingModule>("classing");
             if (classing) {
                 const base = Math.floor(classing.state.maxEnergy / 2);
                 const delta = this.computeRecovery(playerId, base);
-                classing.state.currentEnergy = Math.min(classing.state.currentEnergy + delta, classing.state.maxEnergy);
-                this.messages.whisper(playerId, `(Energy restored: +${delta}, now ${classing.state.currentEnergy}/${classing.state.maxEnergy})`);
+                const totalRecovery = delta + melodyShiftEffects.energyBonus;
+                classing.state.currentEnergy = Math.min(classing.state.currentEnergy + totalRecovery, classing.state.maxEnergy);
+                this.messages.whisper(playerId, `(Energy restored: +${totalRecovery}, now ${classing.state.currentEnergy}/${classing.state.maxEnergy})`);
             }
 
             scoring.resetProduction();
@@ -1536,6 +1668,8 @@ export class Facility{
             player.get<SkillsModule>("skills").applyModifiers(mods); // replaces activeModifiers
         }
 
+        this.rebuildMoonstrelSongAuras();
+
         this.listProduction();
     }
 
@@ -1545,19 +1679,27 @@ export class Facility{
             if (s.target === "energy") {
             // reuse recoveryMods as a global modifier
             const shifts = evt.durationShifts ?? 1;
-            this.bus.publish({ type: FacilityEvents.shift.adjustRecovery, payload: { bonus: s.op === "add" ? s.value : undefined, multiplier: s.op === "mult" ? s.value : undefined, shifts } });
+            this.bus.publish({ type: FacilityEvents.shift.adjustRecovery, payload: { bonus: s.op === "add" ? s.value : undefined, multiplier: s.op === "mult" ? s.value : undefined, shifts, sourceId: evt.id } });
             }
             // xp/economy/score/custom: publish a bus event so other systems can subscribe
-            this.bus.publish({ type: "facility:global.statDelta", payload: { target: s.target, op: s.op, value: s.value, shifts: evt.durationShifts ?? 1 } });
+            this.bus.publish({ type: "facility:global.statDelta", payload: { target: s.target, op: s.op, value: s.value, shifts: evt.durationShifts ?? 1, sourceId: evt.id } });
         }
 
         // skills: push modifiers into activeModifiers via bus or directly
         for (const sm of evt.skills ?? []) {
             this.bus.publish({
             type: "facility:global.skillModifier",
-            payload: { skillName: sm.skillName, modifier: sm.modifier, shifts: sm.remainingShifts ?? evt.durationShifts ?? 1 }
+            payload: { skillName: sm.skillName, modifier: sm.modifier, shifts: sm.remainingShifts ?? evt.durationShifts ?? 1, sourceId: evt.id }
             });
         }
+    }
+
+    private extendGlobalEffects(evt: GlobalEventDef, shifts: number) {
+        if (shifts <= 0) return;
+        this.bus.publish({ type: FacilityEvents.shift.extendRecovery, payload: { sourceId: evt.id, shifts } });
+        this.bus.publish({ type: FacilityEvents.global.extendStatDelta, payload: { sourceId: evt.id, shifts } });
+        this.bus.publish({ type: FacilityEvents.global.extendSkillModifier, payload: { sourceId: evt.id, shifts } });
+        this.bus.publish({ type: "quality:modifier", payload: { playerId: "*", modifier: { sourceId: evt.id }, action: "extend", shifts } });
     }
 
     private removeGlobalEffects(evt: GlobalEventDef) {
@@ -1568,8 +1710,8 @@ export class Facility{
     }
 
     private computeRecovery(playerId: number, base: number): number {
-        const trimAndApply = (mods?: { multiplier?: number; bonus?: number; remainingShifts: number }[]) => {
-            const kept: { multiplier?: number; bonus?: number; remainingShifts: number }[] = [];
+        const trimAndApply = (mods?: { multiplier?: number; bonus?: number; remainingShifts: number; sourceId?: string }[]) => {
+            const kept: { multiplier?: number; bonus?: number; remainingShifts: number; sourceId?: string }[] = [];
             let amountDelta = 0;
 
             for (const m of mods ?? []) {
@@ -1671,6 +1813,262 @@ export class Facility{
         return lines.length ? lines : ["- none"];
     }
 
+    private rebuildMoonstrelSongAuras(): void {
+        const occupantIds = Array.from(new Set(this.workstationOccupants.values()));
+        const preservedAuraUses = new Map<string, number | undefined>();
+        const preservedSongUsesByPlayer = new Map<number, Map<string, number | undefined>>();
+
+        for (const playerId of occupantIds) {
+            const player = this.router.get(playerId) as DairyPlayer | undefined;
+            const skills = player?.tryGet<SkillsModule>("skills");
+            const preservedSongUses = new Map<string, number | undefined>();
+            for (const modifier of skills?.state.activeModifiers ?? []) {
+                if (modifier.sourceId?.startsWith(this.moonstrelAuraSourcePrefix)) {
+                    preservedAuraUses.set(`${playerId}:${modifier.sourceId}`, modifier.usesRemaining);
+                    continue;
+                }
+                if (modifier.sourceId?.startsWith("song:")) {
+                    preservedSongUses.set(modifier.sourceId, modifier.usesRemaining);
+                }
+            }
+            preservedSongUsesByPlayer.set(playerId, preservedSongUses);
+        }
+
+        for (const playerId of occupantIds) {
+            const player = this.router.get(playerId) as DairyPlayer | undefined;
+            if (!player) continue;
+            this.clearMoonstrelAuraModifiersForPlayer(player);
+            player.tryGet<SongModule>("song")?.syncActiveEffects(preservedSongUsesByPlayer.get(playerId));
+        }
+
+        for (const [sourceStationId, sourcePlayerId] of this.workstationOccupants) {
+            const sourcePlayer = this.router.get(sourcePlayerId) as DairyPlayer | undefined;
+            const song = sourcePlayer?.tryGet<SongModule>("song");
+            if (!song) continue;
+
+            const activeSongs = song.listActiveSongs().filter((activeSong) => activeSong.kind === "song");
+            for (const activeSong of activeSongs) {
+                const radius = Math.min(activeSong.stackLevel, 3);
+                if (radius <= 0) continue;
+
+                for (const targetStationId of this.getNeighborWorkstations(sourceStationId, radius)) {
+                    const targetPlayerId = this.workstationOccupants.get(targetStationId);
+                    if (targetPlayerId === undefined) continue;
+                    this.applyMoonstrelAuraToPlayer(targetPlayerId, sourcePlayerId, activeSong, preservedAuraUses);
+                }
+            }
+        }
+    }
+
+    private notifyActivatedMoonstrelEffect(payload: {
+        playerId?: number;
+        songName?: string;
+        kind?: "song" | "melody";
+        variant?: string;
+        stackLevel?: number;
+        remainingShifts?: number;
+        summary?: string;
+    }): void {
+        const sourcePlayerId = payload.playerId;
+        const kind = payload.kind;
+        if (sourcePlayerId == null || !kind) return;
+
+        const sourcePlayer = this.router.get(sourcePlayerId) as DairyPlayer | undefined;
+        const sourceName = sourcePlayer?.getName() ?? `Player ${sourcePlayerId}`;
+        const variant = payload.variant ? ` <${payload.variant}>` : "";
+        const levelText = payload.stackLevel != null ? ` level ${payload.stackLevel}` : "";
+        const durationText = payload.remainingShifts != null ? ` for ${payload.remainingShifts} shift(s)` : "";
+        const summaryText = payload.summary ? ` ${payload.summary}` : "";
+        const baseText = kind === "melody"
+            ? `(${sourceName} activated melody ${payload.songName ?? "Unknown"}${variant}${durationText}.${summaryText})`
+            : `(${sourceName} activated song ${payload.songName ?? "Unknown"}${variant}${durationText}, aura${levelText}.${summaryText})`;
+
+        if (kind === "melody") {
+            this.messages.whisper(sourcePlayerId, baseText);
+            return;
+        }
+
+        const sourceStationId = this.playerWorkstations.get(sourcePlayerId);
+        if (sourceStationId === undefined) return;
+
+        const auraRange = Math.min(payload.stackLevel ?? 1, 3);
+        const targets = this.getNeighborWorkstations(sourceStationId, auraRange)
+            .map((stationId) => this.workstationOccupants.get(stationId))
+            .filter((playerId): playerId is number => playerId !== undefined && playerId !== sourcePlayerId);
+
+        for (const targetPlayerId of _.uniq(targets)) {
+            this.messages.whisper(targetPlayerId, baseText);
+        }
+    }
+
+    private clearMoonstrelAuraModifiersForPlayer(player: DairyPlayer): void {
+        const skills = player.tryGet<SkillsModule>("skills");
+        if (skills) {
+            skills.state.activeModifiers = skills.state.activeModifiers.filter(
+                (modifier) => !modifier.sourceId?.startsWith(this.moonstrelAuraSourcePrefix),
+            );
+        }
+
+        const quality = player.tryGet<QualityModule>("quality");
+        if (quality) {
+            quality.modifiers.splice(
+                0,
+                quality.modifiers.length,
+                ...quality.modifiers.filter((modifier) => !modifier.sourceId?.startsWith(this.moonstrelAuraSourcePrefix)),
+            );
+        }
+    }
+
+    private applyMoonstrelAuraToPlayer(
+        targetPlayerId: number,
+        sourcePlayerId: number,
+        activeSong: ActiveSong,
+        preservedAuraUses: Map<string, number | undefined>,
+    ): void {
+        const player = this.router.get(targetPlayerId) as DairyPlayer | undefined;
+        if (!player) return;
+
+        const skills = player.tryGet<SkillsModule>("skills");
+        for (const [index, entry] of (activeSong.skillModifiers ?? []).entries()) {
+            if (!skills) break;
+            const sourceId = this.getMoonstrelAuraSkillSourceId(sourcePlayerId, activeSong, index);
+            const defaultUses = entry.modifier.usesRemaining ?? entry.remainingShifts;
+            const usesRemaining = preservedAuraUses.has(`${targetPlayerId}:${sourceId}`)
+                ? preservedAuraUses.get(`${targetPlayerId}:${sourceId}`)
+                : defaultUses;
+
+            skills.state.activeModifiers.push({
+                ...this.scaleAuraSkillModifier(entry.modifier, activeSong.stackLevel),
+                usesRemaining,
+                sourceId,
+            });
+        }
+
+        const quality = player.tryGet<QualityModule>("quality");
+        for (const [index, entry] of (activeSong.qualityModifiers ?? []).entries()) {
+            if (!quality) break;
+            quality.modifiers.push({
+                ...this.scaleAuraQualityModifier(entry.modifier, activeSong.stackLevel),
+                remainingShifts: entry.remainingShifts ?? activeSong.remainingShifts,
+                sourceId: this.getMoonstrelAuraQualitySourceId(sourcePlayerId, activeSong, index),
+            });
+        }
+    }
+
+    private getNeighborWorkstations(originId: number, radius: number): number[] {
+        const origin = this.getWorkstationGridPosition(originId);
+        if (!origin) return [];
+
+        return Object.keys(workStations)
+            .map(Number)
+            .filter((workstationId) => workstationId !== originId)
+            .filter((workstationId) => {
+                const target = this.getWorkstationGridPosition(workstationId);
+                if (!target) return false;
+                const distance = Math.abs(target.col - origin.col) + Math.abs(target.row - origin.row);
+                return distance > 0 && distance <= radius;
+            });
+    }
+
+    private getWorkstationGridPosition(workstationId: number): { col: number; row: number } | null {
+        const station = workStations[workstationId];
+        if (!station) return null;
+
+        const columns = _.uniq(Object.values(workStations).map((pos) => pos.X)).sort((a, b) => a - b);
+        const rows = _.uniq(Object.values(workStations).map((pos) => pos.Y)).sort((a, b) => b - a);
+        const col = columns.indexOf(station.X);
+        const row = rows.indexOf(station.Y);
+        if (col < 0 || row < 0) return null;
+        return { col, row };
+    }
+
+    private getMoonstrelAuraSkillSourceId(sourcePlayerId: number, activeSong: ActiveSong, index: number): string {
+        return `${this.moonstrelAuraSourcePrefix}${sourcePlayerId}:${activeSong.id}:${activeSong.variant ?? "base"}:skill:${index}`;
+    }
+
+    private getMoonstrelAuraQualitySourceId(sourcePlayerId: number, activeSong: ActiveSong, index: number): string {
+        return `${this.moonstrelAuraSourcePrefix}${sourcePlayerId}:${activeSong.id}:${activeSong.variant ?? "base"}:quality:${index}`;
+    }
+
+    private scaleAuraSkillModifier(modifier: AnyModifier, level: number): AnyModifier {
+        return {
+            ...modifier,
+            rewardMultiplier: modifier.rewardMultiplier != null ? this.multiplierFromSongLevel(modifier.rewardMultiplier, level) : undefined,
+            energyCostMultiplier: modifier.energyCostMultiplier != null ? Math.max(0.1, this.multiplierFromSongLevel(modifier.energyCostMultiplier, level)) : undefined,
+        };
+    }
+
+    private scaleAuraQualityModifier(modifier: QualityModifier, level: number): QualityModifier {
+        return {
+            ...modifier,
+            add: modifier.add != null ? modifier.add * level : undefined,
+            mult: modifier.mult != null ? this.multiplierFromSongLevel(modifier.mult, level) : undefined,
+            successAdd: modifier.successAdd != null ? modifier.successAdd * level : undefined,
+            failAdd: modifier.failAdd != null ? modifier.failAdd * level : undefined,
+            successMult: modifier.successMult != null ? this.multiplierFromSongLevel(modifier.successMult, level) : undefined,
+            failMult: modifier.failMult != null ? this.multiplierFromSongLevel(modifier.failMult, level) : undefined,
+        };
+    }
+
+    private multiplierFromSongLevel(base: number, level: number): number {
+        if (level <= 1) return base;
+        const delta = base - 1;
+        return Number((1 + delta * level).toFixed(3));
+    }
+
+    private renderSongRecipe(recipe: SongRecipe): string {
+        if (recipe.notePattern?.length) {
+            return recipe.notePattern
+                .map((color) => songNotes[color]?.icon ?? "?")
+                .join(" ");
+        }
+        return recipe.pattern
+            .map((family) => this.iconForSongFamily(family))
+            .join(" ");
+    }
+
+    private renderCurrentPerformance(song: SongModule): string {
+        const melody = song.renderMelody().trim();
+        return `[${melody}]`;
+    }
+
+    private renderStoredSongBuffer(song: SongModule): string {
+        const storedSongs = song.listStoredSongs();
+        if (!storedSongs.length) return "- none";
+
+        return storedSongs
+            .map((storedSong, index) => {
+                const variant = storedSong.variant ? `${storedSong.variant} ` : "";
+                return `- ${index + 1}. ${storedSong.name} <${variant.trim() || "base"}> [${this.renderSongRecipe(storedSong)}]`;
+            })
+            .join("\n");
+    }
+
+    private renderActiveSongs(song: SongModule): string {
+        const activeSongs = song.listActiveSongs().filter((activeSong) => activeSong.kind === "song");
+        if (!activeSongs.length) return "- none";
+
+        return activeSongs
+            .map((activeSong) => `- ${activeSong.name} <${activeSong.variant ?? "base"}> [${activeSong.remainingShifts} shifts] [range ${Math.min(activeSong.stackLevel, 3)}]`)
+            .join("\n");
+    }
+
+    private renderActiveMelody(song: SongModule): string {
+        const activeMelodies = song.listActiveSongs().filter((activeSong) => activeSong.kind === "melody");
+        if (!activeMelodies.length) return "- none";
+
+        return activeMelodies
+            .map((activeSong) => `- ${activeSong.name} [${this.renderSongRecipe(activeSong)}] [${activeSong.remainingShifts} shifts]`)
+            .join("\n");
+    }
+
+    private iconForSongFamily(family: SongNoteFamily): string {
+        const match = Object.values(songNotes)
+            .filter((note) => note.family === family)
+            .sort((a, b) => a.tier - b.tier)[0];
+        return match?.icon ?? "?";
+    }
+
     private describeModifier(modifier: object): string {
         const parts = Object.entries(modifier as Record<string, unknown>)
             .filter(([, value]) => value !== undefined)
@@ -1763,6 +2161,32 @@ export class Facility{
             this.messages.whisper(playerId, `(You gained ${levels} level${levels > 1 ? "s" : ""}!)`);
         }
         return levels;
+    }
+
+    private getActiveMelodyShiftEffects(playerId: number): { scoreBonus: number; energyBonus: number; xpBonus: number } {
+        const song = this.router.get(playerId)?.tryGet<SongModule>("song");
+        const activeMelodies = song?.listActiveSongs().filter((activeSong) => activeSong.kind === "melody") ?? [];
+
+        return activeMelodies.reduce(
+            (totals, activeMelody) => {
+                totals.scoreBonus += (activeMelody.shiftScorePerLevel ?? 0) * activeMelody.stackLevel;
+                totals.energyBonus += (activeMelody.shiftEnergyPerLevel ?? 0) * activeMelody.stackLevel;
+                totals.xpBonus += activeMelody.shiftXpBonus ?? 0;
+                return totals;
+            },
+            { scoreBonus: 0, energyBonus: 0, xpBonus: 0 },
+        );
+    }
+
+    private applyActiveMelodyXp(playerId: number, bonusXp: number): void {
+        if (bonusXp <= 0) return;
+        const classing = this.router.get(playerId)?.tryGet<ClassingModule>("classing");
+        if (!classing || classing.state.classId === -1) return;
+        const levels = classing.gainXp(bonusXp);
+        this.messages.whisper(playerId, `(Melody bonus XP: +${bonusXp})`);
+        if (levels > 0) {
+            this.messages.whisper(playerId, `(You gained ${levels} level${levels > 1 ? "s" : ""}!)`);
+        }
     }
 
     // Adds chest-based production directly into the scoring cycle score

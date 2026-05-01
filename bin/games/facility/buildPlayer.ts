@@ -13,6 +13,8 @@ import { FacilitySchema } from "./schema";
 import { createFlagsModule } from "../../domain/modules/flags";
 import { FacilityConfig } from "./config";
 import { createSkillLogModule } from "../../domain/modules/skillLog";
+import { createSongModule } from "../../domain/modules/song";
+import { songBook, songNotes } from "./events/songBook";
 
 export type DairyPlayer = PlayerFor<typeof FacilitySchema>;
 
@@ -70,6 +72,7 @@ export function buildDairyPlayer(identity: PlayerIdentity, deps: BuildPlayerDeps
 
   // Attach required modules per schema
   core.attach(createSkillsModule());
+  core.attach(createSongModule(songBook, songNotes));
   core.attach(createQualityModule());
   core.attach(createBullModule());
 

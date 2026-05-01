@@ -1,10 +1,10 @@
-import { MessagePort } from "../ports/MessagePort";
-import { DomainEventBus } from "../ports/DomainEvenPort";
-import { bullDialog } from "../../dialog/bullDialog";
-import { BullProgressEvent } from "../moduleTypes/Bull.types";
-import { BullModule } from "../modules/bull";
-import { ScoringModule } from "../modules/scoring";
-import { PlayerCore } from "../core/PlayerCore";
+import { MessagePort } from "../../ports/MessagePort";
+import { DomainEventBus } from "../../ports/DomainEvenPort";
+import { bullDialog } from "../../../dialog/bullDialog";
+import { BullProgressEvent } from "../../moduleTypes/Bull.types";
+import { BullModule } from "../../modules/bull";
+import { ScoringModule } from "../../modules/scoring";
+import { PlayerCore } from "../../core/PlayerCore";
 
 type SkillUsedPayload = {
   playerId: number;

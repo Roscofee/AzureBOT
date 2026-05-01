@@ -17,6 +17,7 @@ export interface SkillResult {
   effects?: SkillEffect[];   // side-effects to apply to modules
   success?: boolean; //General boolean to mark is a skill is succesful. TRUE as default
   logPayload?: Record<string, unknown>; //Telemtry data for logging or specific module uses
+  feedback?: string[];
 }
 export interface Skill {
   skillId: number;
@@ -57,6 +58,7 @@ export interface BaseModifier {
   skillWhitelist?: string[];
   skillBlacklist?: string[];
   usesRemaining?: number;
+  sourceId?: string;
 }
 
 // 3) Single modifier type used everywhere

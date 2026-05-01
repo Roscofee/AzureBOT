@@ -15,22 +15,26 @@ export type StatDelta = {
         op: "add" | "mult";
         value: number;
         remainingShifts: number;
+        sourceId?: string;
     };
 
 export type SkillModEntry = {
         skillName?: string;           // optional: limit to one skill; omit to apply to all
         modifier: AnyModifier;
         remainingShifts: number;
+        sourceId?: string;
 };
 
 export enum FacilityClassId {
   Volunteer = 1,
-  Gambler = 2
+  Gambler = 2,
+  Moonstrel = 3,
 }
 
 export const FacilityClasses = {
   Volunteer: { id: FacilityClassId.Volunteer, name: "Volunteer" },
   RiskyHeifer: { id: FacilityClassId.Gambler, name: "Risky Heifer" },
+  Moonstrel: { id: FacilityClassId.Moonstrel, name: "Moonstrel" },
 } as const;
 
 export const acceptedClassNames: string[] = Object.values(FacilityClasses).map((c) => c.name);
@@ -62,7 +66,8 @@ export const Limits: LimitsConfig = {
   // Optional per-skill overrides (keyed by skill_id)
   skillMaxLevelBySkill: {
      8: 8,
-     2: 6
+     2: 6,
+     14: 1,
   } as Partial<Record<number, number>>,
 };
 export const classMaxLevel = makeClassMaxLevel(Limits, getXPConfigFor);
@@ -83,6 +88,7 @@ export const pricing: PricingConfig = {
   classPrices: {
     [FacilityClassId.Volunteer]: 0,
     [FacilityClassId.Gambler]: 1000,
+    [FacilityClassId.Moonstrel]: 2500,
   },
   skill: {
     globalMultiplier: 1.0,
@@ -93,6 +99,7 @@ export const pricing: PricingConfig = {
 export const starterSkillsByClass: Partial<Record<number, number[]>> = {
   [FacilityClassId.Volunteer]: [1],
   [FacilityClassId.Gambler]: [5],
+  [FacilityClassId.Moonstrel]: [9, 14],
 };
 
 export const FacilityConfig = {
@@ -120,6 +127,11 @@ export const FacilityEvents = {
   },
   shift: {
     adjustRecovery: "facility:shift.adjustRecovery" as const,
+    extendRecovery: "facility:shift.adjustRecovery.extend" as const,
     tick: "facility:shift.tick" as const,
+  },
+  global: {
+    extendStatDelta: "facility:global.statDelta.extend" as const,
+    extendSkillModifier: "facility:global.skillModifier.extend" as const,
   },
 } as const;

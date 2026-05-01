@@ -6,6 +6,7 @@ import { QualityModifier } from "../../../domain/modules/quality";
 export type ActiveGlobalEvent = GlobalEventDef & { remainingShifts: number };
 
 type ApplyFn = (evt: GlobalEventDef, playerId?: number) => void;
+type ExtendFn = (evt: GlobalEventDef, shifts: number, playerId?: number) => void;
 type RemoveFn = (evt: GlobalEventDef) => void;
 
 export class GlobalEventManager {
@@ -17,6 +18,7 @@ export class GlobalEventManager {
     private messages: MessagePort,
     private bus: DomainEventBus,
     private applyEffects: ApplyFn,
+    private extendEffects: ExtendFn,
     private removeEffects: RemoveFn
   ) {}
 
@@ -24,7 +26,15 @@ export class GlobalEventManager {
 
   fireById(id: string, playerId?: number) {
     const def = this.registry.get(id);
-    if (!def || this.isActive(id)) return false;
+    if (!def) return false;
+
+    const active = this.active.find((evt) => evt.id === id);
+    if (active) {
+      active.remainingShifts += 1;
+      this.extendEffects(active, 1, playerId);
+      return true;
+    }
+
     this.activate(def, playerId);
     return true;
   }

@@ -9,6 +9,8 @@ export const normalPlayerCommandGuideLines = [
     "-/bot classShop [class name] : lists class shop options or buys the named class",
     "-/bot skillShop [skill name] : lists skill shop options or buys the named skill",
     "-/bot skillUpgrade [skill name] : lists upgradable skills or upgrades the named skill",
+    "-/bot songbook : whispers the facility songbook with recipes and base summaries",
+    "-/bot songs : Moonstrel only, whispers your current note, aura song, and melody status",
 ];
 
 export const getNormalPlayerCommandGuide = (): string =>
@@ -30,7 +32,7 @@ unique and relaxing experience!
 Disclaimer : Volunteers forteit the right to pursue legal action in the case of lose of self,
 permanent physiology modifications, subliminal trai-[REDACTED].
 
-ℹ️ How To Play
+ℹ️ How To Join
 ==============
 To join just write *scanner
 -Use /bot select to list your available classes, then /bot select <className> to choose one
@@ -38,9 +40,21 @@ To join just write *scanner
 -Once you are dressed and have your class selected walk to the entry area over any diamont shape to get assigned a workstation
 -To confirm your workstation simply walk one step back the pink area and enter again
 
-ℹ️ Room Commands
+🔧 Room Commands
 ==============
 ${normalPlayerCommandGuideLines.join("\n")}
+
+🎼 Moonstrel Guide
+==============
+-Moonstrel skills generate notes: white/purple = self, red/orange = drive, green = restore, blue = guard, gold = crown
+-Your note memory keeps the last 5 notes played and resolves phrases from longest pattern to shortest
+-Songs are stronger phrases that are stored in your buffer and must be performed manually with Sing or replayed with Encore
+-Melodies activate immediately when their pattern is completed and occupy melody slots until they expire
+-Playing the same active song again with the same variant raises its level and extends it by 1 shift; a different variant replaces it
+-Active songs project their buffs to neighboring occupied workstations instead of the singer, and song range equals song level up to 3
+-Playing the same active melody again with the same variant raises its level and extends it by 1 shift; a different variant replaces it
+-Song buffer size starts at 2, grows to 3 at class level 50, and to 4 at class level 100
+-Melody slots start at 1 and grow to 2 at class level 50
 `;
 
 export const MAP = "N4IgKgngDgpiBcICCAbA7gQwgZxAGnAEsUZdFA6EEBkQamm8+hxp5lhwDEAB1jtzjgJY6MA1yNFiRjAHbSZM+hwAT4vnwYiAIZq3aJ9Wfvp9xIweQ3aLm3YA4QW9fJ37Z8+tHPLH10PIAHv+Ulff2chLTcXTzChPz8ZGPpRKO9dYzEE7xi44NSJCQAvgoKRQoLnBx9bSVsK9KZc4oAggAKGvMaWtol4wPjhXXShPKbhzqGR0RifLJ8+twGxptHhxbdM6V6EsLV21p3O7189ehnDF2NyBaWR530Dcg4z8Qvlq8Wb27lyI1CrUtE85q7QaA/blSrVJwPH6uP7FF5w8Zdfw9YJQsKwwbwzGI6JrSS9b7ovIhAEdParWLrVFnWEXErFEplawVaxVZmQx7JA5pELcjLIoInAb9HIAYNFOUm01mIuhVnFcq8gul6SiwrECtSrD6FgZJUK4v1JQ+0k2li54jyhq1JsCZg8yV1VtFbWWw28tvVaUVg2tTXI/qaHpNdQO20t1vOnvIABMY4w49qkwwQ7G4+nE/RACfgOYYCgAZwoFAwc1mUx96BmM+QFKWcwo+AXC4262W+J6q+ma62G4Wiyoe+2Q53Ey36yoi82i6X+7IpnIR/GVBOG42+8vV8u57JY4AF8Az+6+y+PBf7x+P28+Md3N8PR/PjcnD63JtULBX56Lk/z+eXP/ztrPiem4qIWYH/hBQ7rLIQFng+X5NhBv5QfiMEnhOQFrnBD6XtI+AgAA8gARgAVjAADGAAuZAgIudH0Qx6aAKvgMaAB/gMaAM/g7FcYxi6AE/AgA/wAJ6aAAggImACQg6YcYAaBCybJMYsRmgBjQCpMaqSpSlVpJVYAEV8XGrHSYAW+DpkZ0kcbxDGAC3wnbyQ0ABpDQxvJynqZpGmLoA1fAxt5GZOTGgAnQEFcb+ZZ6aAHfgEUxpFGaAAKAgBsgFW8WxVWclpXJi6RTF6ahX5YWdtlcaFXGgDJyFZJW2Yx0mdt5vlhdVDENdlWUjoASEDpu1GYNfR3VRcVOWOZVjUZsVhXVQ0AW5fllmGTGE1TdNjEyXNk1xilca9YuvWjV1K1OYAEEC7cNVa1VWs3zWt6abSOTV9ZVF2HVdVUFdFVbLRdMbrYtr0jems1zXRaWAG3wQNpV5PnfZZzU/ZDYUtVWgDb4GpqlIzGgA4oIAPSCAP0ggCjIIAfSCAO0ggCtIPlNkjqFC2w+mgBYIOm9mfQAMSl9MxkTeOACMggBDIIAkyCANignaAC0gnNE4AwyAi3RIm0yFVahYAmKAxvLst8N9ku8YrCudtTgALMNrUvidpGZZnRgBNMLD+uG0bcbU3xgBkMIAdfB24AODB8VLi5WWTkPrV9sOAPfgPsZn7eUA2FgBAEJ2/t0YAYCDB050dh9NIcRwx8WJYu8dViH6dh0nI7RzG9ks3n6bpyO6dMTnnbe5dMYl5ZFediZplU5Dme11Tmdpx3+X1xmJdh23GaSNgdE93GHet2PmdMQP9GjzGIAAL5AA===";

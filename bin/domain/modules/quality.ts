@@ -111,10 +111,16 @@ export function createQualityModule(initialQuality = 50): QualityModule {
 
       unsubscribers.push(bus.subscribe("quality:modifier", (evt: DomainEvent) => {
         if (!player) return;
-        const payload = evt.payload as { playerId?: number | "*"; modifier: QualityModifier; action: "add" | "remove" };
+        const payload = evt.payload as { playerId?: number | "*"; modifier: QualityModifier; action: "add" | "remove" | "extend"; shifts?: number };
         if (payload.playerId !== "*" && payload.playerId !== player.identity.id) return;
         if (payload.action === "add") {
           modifiers.push({ ...payload.modifier });
+        } else if (payload.action === "extend" && payload.modifier.sourceId) {
+          for (const modifier of modifiers) {
+            if (modifier.sourceId === payload.modifier.sourceId) {
+              modifier.remainingShifts = (modifier.remainingShifts ?? 0) + (payload.shifts ?? 1);
+            }
+          }
         } else if (payload.modifier.sourceId) {
           for (let i = modifiers.length - 1; i >= 0; i--) {
             if (modifiers[i].sourceId === payload.modifier.sourceId) modifiers.splice(i, 1);

@@ -45,11 +45,14 @@ export function createClassingModule(
     gainXp(amount) {
       const maxLevel = cfg.getClassMaxLevel?.(this.state.classId) ?? 100;
       if (this.state.level >= maxLevel) return 0;
+
       const startingLevel = this.state.level;
       const applied = cfg.adjustXPGain ? cfg.adjustXPGain(this.state.classId, this.state.level, amount) : amount;
+      const playerName = player.identity.nickname || player.identity.name;
+
       this.state.xp += applied;
       let levels = 0;
-      const scoring = player.tryGet<any>("scoring");
+
       while (this.state.xp >= this.state.xpToLevel) {
         this.state.xp -= this.state.xpToLevel;
         this.state.level++;
@@ -59,7 +62,11 @@ export function createClassingModule(
         // recompute xpToLevel
         this.state.xpToLevel = Math.floor(cfg.baseXP * Math.pow(this.state.level, cfg.scaling));
 
-        messages.broadcast(`(\n🟩 ${this.state.name} ${player.identity.nickname || player.identity.name}\nHas reached level ${this.state.level}`);
+        console.log(`[CLASS XP] ${this.state.name} ${playerName} reached level ${this.state.level}`);
+        if (cfg.levelAnnouncements.includes(this.state.level)) {
+          messages.broadcast(`(\n${this.state.name} ${playerName}\nHas reached level ${this.state.level}`);
+        }
+
         if (this.state.level >= maxLevel) {
           this.state.level = maxLevel;
           this.state.xp = 0;
@@ -67,13 +74,9 @@ export function createClassingModule(
           break;
         }
 
-        if (cfg.levelAnnouncements.includes(this.state.level)) {
-          // already broadcasted; keep if you want special formatting here
-        }
         levels++;
       }
-      if (levels > 0) {
-      }
+
       return levels;
     },
 
@@ -98,7 +101,7 @@ export function createClassingModule(
       }
 
       aux += `||\nFor more skill info use [/bot skills]`;
-      messages.whisper(player.identity.id, aux)
+      messages.whisper(player.identity.id, aux);
     }
   };
 

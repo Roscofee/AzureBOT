@@ -73,6 +73,7 @@ export class SkillEngine {
 
       // collect per-skill feedback
       messages.push(`You used ${skill.skillName}, energy cost: ${effEnergy}, reward: ${finalReward.toFixed(2)})`);
+      if (base.feedback?.length) messages.push(...base.feedback);
     }
 
     if (messages.length > 0 || warnings.length > 0) return [...messages, ...warnings].join("\n");
