@@ -41,7 +41,7 @@ export const globalEvents: GlobalEventDef[] = [
     skills: [
       {
         skillName: "Moo",
-        modifier: { rewardMultiplier: 2, skillWhitelist: ["Moo", "GamblersMoo"] },
+        modifier: { rewardMultiplier: 2, skillWhitelist: ["Moo", "GamblersMoo", "MelodicMoo"] },
         remainingShifts: 1,
       },
     ],

@@ -736,16 +736,28 @@ export class Facility{
          // Ensure the sender has permission (must be registered)
         if (!this.commandPermission(sender, true)) return;
 
-        const lines = songBook.map((recipe) => {
+        const songsPerPage = 6;
+        const totalPages = Math.max(1, Math.ceil(songBook.length / songsPerPage));
+        const requestedPage = Number.parseInt(args[0] ?? "1", 10);
+        const page = Number.isFinite(requestedPage) && requestedPage > 0
+            ? Math.min(requestedPage, totalPages)
+            : 1;
+        const pageSongs = songBook.slice((page - 1) * songsPerPage, page * songsPerPage);
+
+        const lines = pageSongs.map((recipe) => {
             const summary = recipe.kind === "aria"
                 ? recipe.ariaEffect?.summary ?? "No summary available."
-                : recipe.variants?.S?.summary ?? "No S variant summary available.";
+                : recipe.variants?.S?.summary
+                    ?? recipe.variants?.L?.summary
+                    ?? recipe.variants?.XL?.summary
+                    ?? Object.values(recipe.variants ?? {}).find((variant) => variant?.summary)?.summary
+                    ?? "No summary available.";
             return `- ${recipe.name} [${this.renderSongRecipe(recipe)}] <${recipe.kind}>\n  ${summary}`;
         });
 
         this.messages.whisper(
             sender.MemberNumber,
-            `(\nSongbook:\n${lines.join("\n")}\n)`,
+            `(\nPage [${page}/${totalPages}] use /bot songbook <page number> to select the next one.\nSongbook:\n${lines.join("\n")}\n)`,
         );
     };
 

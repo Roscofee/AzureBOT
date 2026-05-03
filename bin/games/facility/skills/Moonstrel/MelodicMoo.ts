@@ -10,7 +10,7 @@ export class MelodicMoo implements Skill {
     description: string;
     upgrade_description: string;
 
-    validMessageTypes: ChatMessageType[] = ["Emote"];
+    validMessageTypes: ChatMessageType[] = ["Emote", "Chat"];
     triggerTokens: string[] = ["moo", "mooing", "moo"];
     energyCost = 10;
     priority = 5;
