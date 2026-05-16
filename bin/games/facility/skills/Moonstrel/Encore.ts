@@ -4,6 +4,7 @@ import { IncomingMessage } from "../../../../domain/ports/MessagePort";
 import { ChatMessageType, Skill, SkillResult } from "../../../../domain/skills/Skill.types";
 import { songEngine } from "../../../../domain/services/facility/SongEngine";
 import { currentEnergyPercentCost } from "./_shared";
+import { matchesAnyTriggerToken } from "../triggerMatching";
 
 export class Encore implements Skill {
     skillId: number;
@@ -27,7 +28,7 @@ export class Encore implements Skill {
 
     validInput(data: IncomingMessage): boolean {
         const content = (data.Content ?? "").toLowerCase();
-        return this.validMessageTypes.includes(data.Type) && this.triggerTokens.some((token) => content.includes(token));
+        return this.validMessageTypes.includes(data.Type) && matchesAnyTriggerToken(content, this.triggerTokens);
     }
 
     canExecute(player: PlayerCore): boolean {

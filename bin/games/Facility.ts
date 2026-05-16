@@ -1585,7 +1585,7 @@ export class Facility{
             // wake up gear and vibes
             activateRespirator(char);
             const vibeGroup: AssetGroupName = char.hasPenis() ? "ItemButt" : "ItemDevices";
-            setCharacterVibeMode(char, vibeGroup, 1); 
+            setCharacterVibeMode(char, vibeGroup, 2); 
 
             this.messages.whisper(playerId, dialog.phase2.dStarts);
             this.messages.whisper(playerId, dialog.phase2.release);

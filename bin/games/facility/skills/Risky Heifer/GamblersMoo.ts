@@ -1,6 +1,7 @@
 import { PlayerCore } from "../../../../domain/core/PlayerCore";
 import { IncomingMessage } from "../../../../domain/ports/MessagePort";
 import { Skill, SkillResult, ChatMessageType } from "../../../../domain/skills/Skill.types";
+import { matchesAnyTriggerToken } from "../triggerMatching";
 
 export class GamblersMoo implements Skill {
     skillId: number;
@@ -36,7 +37,7 @@ export class GamblersMoo implements Skill {
     validInput(data: IncomingMessage): boolean {
         const validMessageType = this.validMessageTypes.includes(data.Type);
         const content = (data.Content ?? "").toLowerCase();
-        const canTrigger = this.triggerTokens.some((token) => content.includes(token));
+        const canTrigger = matchesAnyTriggerToken(content, this.triggerTokens);
         return validMessageType && canTrigger;
     }
 

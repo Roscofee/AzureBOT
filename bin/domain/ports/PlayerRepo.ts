@@ -65,6 +65,8 @@ export interface PlayerRepo {
   // writes used by shop/upgrade flows
   assignSkillToPlayer(playerId: number, skillId: number): Promise<void>;
   updatePlayerSkillLevel(playerId: number, skillId: number, newLevel: number): Promise<void>;
+  purchaseSkill(playerId: number, skillId: number, price: number): Promise<number>;
+  upgradeSkill(playerId: number, skillId: number, price: number, expectedCurrentLevel: number, newLevel: number): Promise<number>;
   assignClassToPlayer(playerId: number, classId: number): Promise<void>;
 
   // (optional) registration / flags you already have

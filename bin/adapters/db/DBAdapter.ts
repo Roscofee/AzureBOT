@@ -64,6 +64,14 @@ export class DBAdapter implements PlayerRepo {
     return DB.updatePlayerSkillLevel(playerId, skillId, newLevel);
   }
 
+  async purchaseSkill(playerId: number, skillId: number, price: number) {
+    return DB.purchaseSkill(playerId, skillId, price);
+  }
+
+  async upgradeSkill(playerId: number, skillId: number, price: number, expectedCurrentLevel: number, newLevel: number) {
+    return DB.upgradeSkill(playerId, skillId, price, expectedCurrentLevel, newLevel);
+  }
+
   async assignClassToPlayer(playerId: number, classId: number) {
     return DB.assignClassToPlayer(playerId, classId);
   }

@@ -94,14 +94,26 @@ export class SkillShopService {
       }
     }
 
-    // Price & spend
+    // Price & persist atomically
     const price = this.calcPrice(candidate.price as number, candidate.skill_id);
-    if (!economy.spend(price)) {
+    if (economy.balance() < price) {
       this.messages.whisper(player.identity.id, "(==== \n ERROR: INSUFFICENT FUNDS \n ====")
       return;
     }
 
-    await this.repo.assignSkillToPlayer(player.identity.id, candidate.skill_id);
+    try {
+      const newBalance = await this.repo.purchaseSkill(player.identity.id, candidate.skill_id, price);
+      economy.state.currency = newBalance;
+      this.messages.whisper(player.identity.id, `(Balance updated: ${newBalance} ACs)`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg === "INSUFFICIENT_FUNDS") {
+        this.messages.whisper(player.identity.id, "(==== \n ERROR: INSUFFICENT FUNDS \n ====");
+        return;
+      }
+      this.messages.whisper(player.identity.id, "(==== \n ERROR: SKILL PURCHASE FAILED \n ====");
+      throw err;
+    }
 
     // Reload class skills
     const fresh = await this.repo.obtainPlayerCurrentSkillsFromClass(player.identity.id, classing.state.classId);

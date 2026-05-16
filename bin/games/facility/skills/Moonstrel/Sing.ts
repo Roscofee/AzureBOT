@@ -3,6 +3,7 @@ import { SongModule } from "../../../../domain/modules/song";
 import { IncomingMessage } from "../../../../domain/ports/MessagePort";
 import { ChatMessageType, Skill, SkillResult } from "../../../../domain/skills/Skill.types";
 import { songEngine } from "../../../../domain/services/facility/SongEngine";
+import { matchesAnyTriggerToken } from "../triggerMatching";
 
 export class Sing implements Skill {
     skillId: number;
@@ -26,7 +27,7 @@ export class Sing implements Skill {
 
     validInput(data: IncomingMessage): boolean {
         const content = (data.Content ?? "").toLowerCase();
-        return this.validMessageTypes.includes(data.Type) && this.triggerTokens.some((token) => content.includes(token));
+        return this.validMessageTypes.includes(data.Type) && matchesAnyTriggerToken(content, this.triggerTokens);
     }
 
     canExecute(player: PlayerCore): boolean {

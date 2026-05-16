@@ -71,13 +71,35 @@ export class SkillUpgradeService {
 
     const base = 1000 * (curLevel || 1);
     const price = this.calcPrice(base, skill.skillId);
-    if (!economy.spend(price)) {
+    if (economy.balance() < price) {
       this.messages.whisper(player.identity.id, "(==== \n ERROR: INSUFFICENT FUNDS \n ====");
       return;
     }
 
     const newLevel = (skill.skillLevel ?? 0) + 1;
-    await this.repo.updatePlayerSkillLevel(player.identity.id, skill.skillId, newLevel);
+    try {
+      const newBalance = await this.repo.upgradeSkill(
+        player.identity.id,
+        skill.skillId,
+        price,
+        curLevel,
+        newLevel,
+      );
+      economy.state.currency = newBalance;
+      this.messages.whisper(player.identity.id, `(Balance updated: ${newBalance} ACs)`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg === "INSUFFICIENT_FUNDS") {
+        this.messages.whisper(player.identity.id, "(==== \n ERROR: INSUFFICENT FUNDS \n ====");
+        return;
+      }
+      if (msg === "STALE_SKILL_LEVEL") {
+        this.messages.whisper(player.identity.id, "(==== \n ERROR: SKILL STATE CHANGED, TRY AGAIN \n ====");
+        return;
+      }
+      this.messages.whisper(player.identity.id, "(==== \n ERROR: SKILL UPGRADE FAILED \n ====");
+      throw err;
+    }
 
     // Reload class skills
     const fresh = await this.repo.obtainPlayerCurrentSkillsFromClass(player.identity.id, classing.state.classId);

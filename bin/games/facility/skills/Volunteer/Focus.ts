@@ -2,6 +2,7 @@ import { PlayerCore } from "../../../../domain/core/PlayerCore";
 import { IncomingMessage } from "../../../../domain/ports/MessagePort";
 import { Skill, SkillResult, ChatMessageType, AnyModifier } from "../../../../domain/skills/Skill.types";
 import { SkillsModule } from "../../../../domain/modules/skills";
+import { matchesAnyTriggerToken } from "../triggerMatching";
 
 export class Focus implements Skill {
     skillId: number;
@@ -36,7 +37,7 @@ export class Focus implements Skill {
     validInput(data: IncomingMessage): boolean {
         const validMessageType = this.validMessageTypes.includes(data.Type);
         const content = (data.Content ?? "").toLowerCase();
-        const canTrigger = this.triggerTokens.some((token) => content.includes(token));
+        const canTrigger = matchesAnyTriggerToken(content, this.triggerTokens);
         return validMessageType && canTrigger;
     }
 
