@@ -1,8 +1,10 @@
 import { PlayerCore } from "../../../../domain/core/PlayerCore";
+import { ModifierModule } from "../../../../domain/modules/modifiers";
 import { IncomingMessage } from "../../../../domain/ports/MessagePort";
 import { Skill, SkillResult, ChatMessageType } from "../../../../domain/skills/Skill.types";
 
 const MOO_TRIGGER = /(?:^|[^\p{L}\p{N}])moo+(?:ing|s)?(?=$|[^\p{L}\p{N}])/u;
+const BRACE_SOURCE_ID = "skill:Brace";
 
 export class Moo implements Skill {
     skillId: number;
@@ -47,12 +49,18 @@ export class Moo implements Skill {
         const baseIncrease = 3;
         const levelMultiplier = 1 + (0.08 * this.skillLevel);
         const scoreIncrease = baseIncrease * levelMultiplier;
+        const modifiers = player.tryGet<ModifierModule>("modifiers");
+        const bracePrimed = !!modifiers?.has({ sourceId: BRACE_SOURCE_ID });
 
         const name = player.identity.nickname ?? player.identity.name;
-        console.log(`${name} triggered Moo skill (increase ${scoreIncrease.toFixed(2)})`);
+        console.log(`${name} triggered Moo skill${bracePrimed ? " CRITICAL" : ""} (increase ${scoreIncrease.toFixed(2)})`);
 
         // Engine uses computeEnergy() for energy; return here for completeness
-        return { energy: this.computeEnergy(player), reward: scoreIncrease };
+        return {
+            energy: this.computeEnergy(player),
+            reward: scoreIncrease,
+            outcome: bracePrimed ? "critical" : "success",
+        };
     }
 
     computeEnergy(player: PlayerCore): number {

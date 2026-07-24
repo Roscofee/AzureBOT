@@ -120,25 +120,52 @@ export function freeCharacter(character: API_Character): void{
 export function setCharacterVibeMode(
     character: API_Character,
     group: AssetGroupName,
-    modeIndex: number,
+    modeIndex: 0 | 4 | 9,
 ): void {
     const item = character.Appearance.InventoryGet(group);
     if (!item) return; // nothing equipped
 
-    const data: BC_AppearanceItem = item.getData();
-    data.Property ??= {};
-    data.Property.TypeRecord ??= {};
+    item.setProperty("TypeRecord", { vibrating: modeIndex, });
 
-    // keep other type flags, just swap the vibrating one
-    data.Property.TypeRecord.vibrating = modeIndex;
+    switch (modeIndex) {
+        case 0:
+            
+            item.setProperty("Mode", "Edge");
+            item.setProperty("Intensity", -1);
+            item.setProperty("Effect", [
+                "Egged"
+            ]);
 
-    // make sure the server sees it as vibrating
-    const effects = new Set(data.Property.Effect ?? []);
-    effects.add("Vibrating");
-    data.Property.Effect = [...effects];
+            break;
+        
+        case 4:
+            item.setProperty("Mode", "Maximum");
+            item.setProperty("Intensity", 3);
+            item.setProperty("Effect", [
+                "Egged",
+                "Vibrating",
+            ]);
+            break;
+
+        case 9:
+            item.setProperty("Mode", "Edge");
+            item.setProperty("Intensity", 3);
+            item.setProperty("Effect", [
+                "Egged",
+                "Vibrating",
+                "Edged",
+            ]);
+            break;
+    
+        default:
+
+            console.log(`[SET VIBE MODE] No defined mode detected: ${modeIndex}`);
+
+            return;
+    }
 
     // emit to server 
-    character.sendItemUpdate(data);
+    item.queueUpdate();
 }
 
 export function activateRespirator(character: API_Character){

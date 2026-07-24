@@ -23,6 +23,17 @@ type BullRewardPayload = {
 
 type PlayerGetter = (id: number) => PlayerCore | undefined;
 type BullStage = "silent" | "starting" | "halfway" | "nearReady" | "ready" | "none";
+type BullDialogVariants = {
+  status: {
+    chargeReady: string[];
+    silent: string;
+  };
+  clues: {
+    nearReady: string[];
+    halfway: string[];
+    starting: string[];
+  };
+};
 
 export class BullEngine {
   private lastAnnouncedStage = new Map<number, BullStage>();
@@ -170,16 +181,36 @@ export class BullEngine {
     this.lastAnnouncedStage.set(playerId, stage);
 
     if (stage === "ready") {
-      this.messages.whisper(playerId, bullDialog.status.chargeReady);
+      this.messages.whisper(playerId, this.pickBullDialogVariant("ready"));
     } else if (stage === "silent") {
       this.messages.whisper(playerId, bullDialog.status.silent);
     } else if (stage === "nearReady") {
-      this.messages.whisper(playerId, bullDialog.clues.nearReady);
+      this.messages.whisper(playerId, this.pickBullDialogVariant("nearReady"));
     } else if (stage === "halfway") {
-      this.messages.whisper(playerId, bullDialog.clues.halfway);
+      this.messages.whisper(playerId, this.pickBullDialogVariant("halfway"));
     } else if (stage === "starting") {
-      this.messages.whisper(playerId, bullDialog.clues.starting);
+      this.messages.whisper(playerId, this.pickBullDialogVariant("starting"));
     }
+  }
+
+  private pickBullDialogVariant(stage: "ready" | "nearReady" | "halfway" | "starting"): string {
+    const dialog = bullDialog as BullDialogVariants;
+    if (stage === "ready") {
+      return this.pickRandom(dialog.status.chargeReady);
+    }
+    if (stage === "nearReady") {
+      return this.pickRandom(dialog.clues.nearReady);
+    }
+    if (stage === "halfway") {
+      return this.pickRandom(dialog.clues.halfway);
+    }
+    return this.pickRandom(dialog.clues.starting);
+  }
+
+  private pickRandom(options: string[]): string {
+    if (options.length === 0) return bullDialog.status.silent;
+    const index = Math.floor(Math.random() * options.length);
+    return options[index] ?? options[0];
   }
 
   private energyCap(bull: BullModule): number {

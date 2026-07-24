@@ -2,6 +2,7 @@ import { BullModule } from "../modules/bull";
 import { ClassingModule } from "../modules/classing";
 import { EconomyModule } from "../modules/economy";
 import { FlagsModule } from "../modules/flags";
+import { MomentumModule } from "../modules/momentum";
 import { ModifierModule } from "../modules/modifiers";
 import { QualityModule } from "../modules/quality";
 import { SongModule } from "../modules/song";
@@ -23,6 +24,7 @@ export type ModuleKey =
   | "flags"
   | "modifiers"
   | "skillLog"
+  | "momentum"
   | "quality"
   | "bull"
   | "song";
@@ -35,6 +37,7 @@ export type ModuleOfKey<K extends string> =
   K extends "flags" ? FlagsModule<any> :
   K extends "modifiers" ? ModifierModule :
   K extends "skillLog" ? SkillLogModule :
+  K extends "momentum" ? MomentumModule :
   K extends "quality" ? QualityModule :
   K extends "bull" ? BullModule :
   K extends "song" ? SongModule :

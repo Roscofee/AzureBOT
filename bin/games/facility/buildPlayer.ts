@@ -14,6 +14,7 @@ import { createFlagsModule } from "../../domain/modules/flags";
 import { createModifierModule } from "../../domain/modules/modifiers";
 import { FacilityConfig } from "./config";
 import { createSkillLogModule } from "../../domain/modules/skillLog";
+import { createMomentumModule } from "../../domain/modules/momentum";
 import { createSongModule } from "../../domain/modules/song";
 import { songBook, songNotes } from "./events/songBook";
 
@@ -114,6 +115,7 @@ export function buildDairyPlayer(identity: PlayerIdentity, deps: BuildPlayerDeps
   core.attach(flags);
 
   core.attach(createSkillLogModule());
+  core.attach(createMomentumModule());
 
   // Ensure all required modules exist and narrow the type
   ensureModules(core, FacilitySchema);

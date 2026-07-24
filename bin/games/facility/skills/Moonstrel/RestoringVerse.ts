@@ -1,8 +1,12 @@
 import { PlayerCore } from "../../../../domain/core/PlayerCore";
+import { ModifierModule } from "../../../../domain/modules/modifiers";
 import { IncomingMessage } from "../../../../domain/ports/MessagePort";
 import { ChatMessageType, Skill, SkillResult } from "../../../../domain/skills/Skill.types";
+import { fromSkillModifier } from "../../modifierHelpers";
 import { isMoonstrelMaxLevel, performMoonstrelNotes, scaledMoonstrelEnergy, smallFlatReward } from "./_shared";
 import { matchesAnyTriggerToken } from "../triggerMatching";
+
+const RESTORED_ENCORE_SOURCE = "skill:RestoringVerse:EncoreDiscount";
 
 export class RestoringVerse implements Skill {
     skillId: number;
@@ -29,7 +33,11 @@ export class RestoringVerse implements Skill {
         return this.validMessageTypes.includes(data.Type) && matchesAnyTriggerToken(content, this.triggerTokens);
     }
 
-    canExecute(player: PlayerCore): boolean { return true; }
+    canExecute(player: PlayerCore): boolean {
+        const modifiers = player.tryGet<ModifierModule>("modifiers");
+        if (!modifiers || !isMoonstrelMaxLevel(this.skillLevel)) return true;
+        return !modifiers.has({ sourceId: RESTORED_ENCORE_SOURCE });
+    }
 
     computeEnergy(player: PlayerCore): number {
         return scaledMoonstrelEnergy(player, this.energyCost, this.skillLevel);
@@ -37,8 +45,22 @@ export class RestoringVerse implements Skill {
 
     use(player: PlayerCore): SkillResult {
         const reward = smallFlatReward(3.5, this.skillLevel);
-        const colors = isMoonstrelMaxLevel(this.skillLevel) ? ["green", "gold"] as const : ["green"] as const;
-        const phrase = performMoonstrelNotes(player, this.skillName, [...colors]);
-        return { energy: this.computeEnergy(player), reward, effects: phrase.effects, feedback: phrase.feedback };
+        const phrase = performMoonstrelNotes(player, this.skillName, ["green"]);
+        const feedback = [...(phrase.feedback ?? [])];
+        if (isMoonstrelMaxLevel(this.skillLevel)) {
+            const modifiers = player.tryGet<ModifierModule>("modifiers");
+            modifiers?.addMany(fromSkillModifier({
+                energyCostMultiplier: 0.7,
+                skillWhitelist: ["Encore"],
+                usesRemaining: 1,
+            }, {
+                id: `${RESTORED_ENCORE_SOURCE}:${player.identity.id}`,
+                sourceType: "skill",
+                sourceId: RESTORED_ENCORE_SOURCE,
+                ownerPlayerId: player.identity.id,
+            }));
+            feedback.push(`${this.skillName} reduces the cost of your next Encore by 30%.`);
+        }
+        return { energy: this.computeEnergy(player), reward, effects: phrase.effects, feedback };
     }
 }

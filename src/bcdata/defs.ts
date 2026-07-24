@@ -302,6 +302,9 @@ export function InventoryItemMiscOwnerTimerPadlockDrawHook(...args: any[]): any 
 export function InventoryItemMiscOwnerTimerPadlockClickHook(...args: any[]): any {
 	return null;
 };
+export function InventoryItemMiscOwnerTimerPadlockExitHook(...args: any[]): any {
+	return null;
+};
 export function InventoryItemMiscLoversTimerPadlockValidator(...args: any[]): any {
 	return null;
 };
@@ -323,6 +326,9 @@ export function InventoryItemMiscMistressTimerPadlockDrawHook(...args: any[]): a
 export function InventoryItemMiscMistressTimerPadlockClickHook(...args: any[]): any {
 	return null;
 };
+export function InventoryItemMiscMistressTimerPadlockExitHook(...args: any[]): any {
+	return null;
+};
 export function InventoryItemMiscFamilyPadlockDrawHook(...args: any[]): any {
 	return null;
 };
@@ -338,6 +344,9 @@ export function InventoryItemMiscCombinationPadlockDrawHook(...args: any[]): any
 export function InventoryItemMiscCombinationPadlockClickHook(...args: any[]): any {
 	return null;
 };
+export function InventoryItemHandheldPlushiesSetOptionHook(...args: any[]): any {
+	return null;
+};
 export function InventoryItemMiscCombinationPadlockExitHook(...args: any[]): any {
 	return null;
 };
@@ -348,6 +357,9 @@ export function InventoryItemMiscTimerPasswordPadlockDrawHook(...args: any[]): a
 	return null;
 };
 export function InventoryItemMiscTimerPasswordPadlockClickHook(...args: any[]): any {
+	return null;
+};
+export function InventoryItemMiscTimerPasswordPadlockExitHook(...args: any[]): any {
 	return null;
 };
 
@@ -505,7 +517,14 @@ export const InterfaceTextGet = (x: string) => undefined;
 
 
 // from TextItem.js (stubbed)
-export const TextItem = undefined;
+export const TextItem = {
+	GenericTextArcDrawHook(...args: any[]): any {
+		return null;
+	},
+	GenericTextDrawHook(...args: any[]): any {
+		return null;
+	},
+};
 
 // from Time.js I believe. exists in Timer.js as well(stubbed)
 export const CurrentTime = 0;

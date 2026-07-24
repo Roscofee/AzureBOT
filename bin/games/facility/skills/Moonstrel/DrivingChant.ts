@@ -12,7 +12,7 @@ export class DrivingChant implements Skill {
     upgrade_description: string;
 
     validMessageTypes: ChatMessageType[] = ["Emote"];
-    triggerTokens: string[] = ["drivingchant", "driving chant"];
+    triggerTokens: string[] = ["chant", "drivingchant", "driving chant"];
     energyCost = 12;
     priority = 5;
 

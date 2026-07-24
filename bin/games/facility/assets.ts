@@ -13,8 +13,16 @@ export const normalPlayerCommandGuideLines = [
     "-/bot songs : Moonstrel only, whispers your current note, aura song, and melody status",
 ];
 
-export const getNormalPlayerCommandGuide = (): string =>
-    `(\n${normalPlayerCommandGuideLines.join("\n")}\n)`;
+export const volunteerCommandGuideLines = [
+    "-/bot momentum : Volunteer only, whispers your current momentum",
+];
+
+export const getNormalPlayerCommandGuide = (options?: { includeVolunteerCommands?: boolean }): string => {
+    const lines = options?.includeVolunteerCommands
+        ? [...normalPlayerCommandGuideLines, ...volunteerCommandGuideLines]
+        : normalPlayerCommandGuideLines;
+    return `(\n${lines.join("\n")}\n)`;
+};
 
 export const makeBio = (
     leaderBoard?: string,
@@ -280,7 +288,7 @@ export let latexRespirator: BC_AppearanceItem = {
         }},
     Craft: {
         Color:"Default,Default,Default,Default,Default,#FB09BD",
-        Description:"Steadily pumps sensitivity enhancers to the user",
+        Description:"Steadily pumps aphrodisiac and sensitivity enhancers to the user",
         Item:"LatexRespirator",
         ItemProperty:{},
         Lock:"",

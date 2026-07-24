@@ -936,7 +936,10 @@ type ExtendedArchetype = "modular" | "typed" | "vibrating" | "variableheight" | 
 /**
  * An object containing extended item configurations keyed by group name.
  */
-type ExtendedItemMainConfig = Partial<Record<AssetGroupName, ExtendedItemGroupConfig>>;
+type ExtendedItemMainConfig = Partial<Record<
+	AssetGroupName | "Decals" | "TailStraps" | "ClothOuter" | "EyeShadow",
+	ExtendedItemGroupConfig
+>>;
 
 /**
  * An object containing extended item definitions for a group.
@@ -1260,6 +1263,10 @@ interface ModularItemModule extends Omit<ModularItemModuleConfig, "DrawData"> {
 interface ModularItemOptionConfig extends Omit<ExtendedItemOptionConfig, "Name"> {
 	/** The additional difficulty associated with this option - defaults to 0 */
 	Difficulty?: number;
+	/** Per-option draw modifiers used by some modular items. */
+	DrawOptions?: {
+		Mirror?: boolean;
+	};
 	/** A list of groups that this option blocks - defaults to [] */
 	Block?: AssetGroupItemName[];
 	/** A list of groups that this option hides - defaults to [] */

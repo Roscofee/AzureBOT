@@ -8,6 +8,7 @@ export const FacilitySchema : GameSchema =
                "scoring",
                "flags",
                "skillLog",
+               "momentum",
                "quality",
                "song"] as const
 };

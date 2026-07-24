@@ -39,6 +39,7 @@ import "./facility/skills/indext";
 import { SkillsModule } from "../domain/modules/skills";
 import { ClassingModule } from "../domain/modules/classing";
 import { FlagsModule } from "../domain/modules/flags";
+import { MomentumModule } from "../domain/modules/momentum";
 import { ModifierModule } from "../domain/modules/modifiers";
 import { BOTPOS, dressingStations, entryTeleportStations, getNormalPlayerCommandGuide, makeBio, MAP, regularUniform, workStations } from "./facility/assets";
 import { activateRespirator, disableRespirator, dressCharacterWithRegularUniform, dressCharacterWithStandardUniform, dressEquipmentMale, dressEquipmentRegular, dressEquipmentStandard, freeCharacter, setCharacterVibeMode, undressCharacter } from "./facility/appereanceUtils";
@@ -236,6 +237,7 @@ export class Facility{
         this.commandParser.register("skills", this.onCommandSkills);
         this.commandParser.register("songbook", this.onCommandSongbook);
         this.commandParser.register("songs", this.onCommandSongs);
+        this.commandParser.register("momentum", this.onCommandMomentum);
         this.commandParser.register("skillShop", this.onCommandSkillShop);
         this.commandParser.register("skillUpgrade", this.onCommandSkillUpgrade);
         this.commandParser.register("balance", this.onCommandBalance);
@@ -748,6 +750,44 @@ export class Facility{
         this.messages.whisper(sender.MemberNumber, `(Current balance: ${economy.balance()} ACs)`);
     };
 
+    private onCommandMomentum = async (
+        sender: API_Character,
+        msg: BC_Server_ChatRoomMessage,
+        args: string[],
+    ) => {
+
+         // Ensure the sender has permission (must be registered)
+        if (!this.commandPermission(sender, true)) return;
+
+        const player = this.router.get(sender.MemberNumber) as DairyPlayer | undefined;
+        if (!player) {
+            this.messages.whisper(sender.MemberNumber, dialog.error.notRegistered);
+            return;
+        }
+
+        const classing = player.tryGet<ClassingModule>("classing");
+        if (classing?.state.classId !== FacilityClasses.Volunteer.id) {
+            this.messages.whisper(sender.MemberNumber, "(ERROR: /bot momentum is only available to the Volunteer class)");
+            return;
+        }
+
+        if ((classing?.state.level ?? 0) <= 10) {
+            this.messages.whisper(sender.MemberNumber, "(Momentum unlocks for Volunteers after level 10.)");
+            return;
+        }
+
+        const momentum = player.tryGet<MomentumModule>("momentum");
+        if (!momentum) {
+            this.messages.whisper(sender.MemberNumber, "(ERROR: missing momentum module)");
+            return;
+        }
+
+        this.messages.whisper(
+            sender.MemberNumber,
+            `(Momentum: ${momentum.state.stacks}/${momentum.state.maxStacks})`,
+        );
+    };
+
     //Display normal player command guide
     private onCommandHelp = async (
         sender: API_Character,
@@ -758,7 +798,12 @@ export class Facility{
          // Ensure the sender has permission (must be registered)
         if (!this.commandPermission(sender, true)) return;
 
-        this.messages.whisper(sender.MemberNumber, getNormalPlayerCommandGuide());
+        const player = this.router.get(sender.MemberNumber) as DairyPlayer | undefined;
+        const classing = player?.tryGet<ClassingModule>("classing");
+        const includeVolunteerCommands =
+            classing?.state.classId === FacilityClasses.Volunteer.id
+            && (classing.state.level ?? 0) > 10;
+        this.messages.whisper(sender.MemberNumber, getNormalPlayerCommandGuide({ includeVolunteerCommands }));
     };
 
     //Open/close farm
@@ -1531,7 +1576,7 @@ export class Facility{
             // wake up gear and vibes
             activateRespirator(char);
             const vibeGroup: AssetGroupName = char.hasPenis() ? "ItemButt" : "ItemDevices";
-            setCharacterVibeMode(char, vibeGroup, 2); 
+            setCharacterVibeMode(char, vibeGroup, 9); 
 
             this.messages.whisper(playerId, dialog.phase2.dStarts);
             this.messages.whisper(playerId, dialog.phase2.release);
@@ -1569,7 +1614,7 @@ export class Facility{
 
             // Set vibes to max
             this.messages.whisper(playerId, dialog.phase2.dClimax);
-            setCharacterVibeMode(char, vibeGroup, 4);   // push to max pattern
+            setCharacterVibeMode(char, vibeGroup, 4);   
 
             //Base score increase using body size
             this.increaseProductionBase(playerId);
