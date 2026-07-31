@@ -62,12 +62,21 @@ export function createMomentumModule(
     const classing = player?.tryGet<any>("classing");
     return classing?.state?.name === trackedClassName;
   };
+  const getScaledMaxStacks = (): number => {
+    const classing = player?.tryGet<any>("classing");
+    const level = classing?.state?.level ?? 0;
+    if (level >= 75) return 6;
+    if (level >= 50) return 5;
+    if (level >= 25) return 4;
+    return 3;
+  };
   const isUnlocked = (): boolean => {
     const classing = player?.tryGet<any>("classing");
     return (classing?.state?.level ?? 0) >= unlockLevel;
   };
 
   const clampStacks = () => {
+    state.maxStacks = getScaledMaxStacks();
     state.stacks = Math.max(0, Math.min(state.maxStacks, state.stacks));
   };
 
@@ -91,14 +100,13 @@ export function createMomentumModule(
         const skillName = payload.skillName ?? "";
         const outcome = payload.outcome ?? "success";
         if (!successfulOutcomes.has(outcome)) return;
-
         if (!payoffSkills.has(skillName)) return;
 
         const recent = getSkillLog()?.lastSuccessfulSkills(2) ?? [];
         const previousSkill = recent.length >= 2 ? recent[recent.length - 2]?.skillName : undefined;
-        if (!previousSkill || !primerSkills.has(previousSkill)) return;
+        const primerBonus = previousSkill && primerSkills.has(previousSkill) ? 1 : 0;
 
-        this.gain(1);
+        this.gain(1 + primerBonus);
       }));
       unsubscribers.push(player.ctx.bus.subscribe("facility:shift.tick", () => {
         this.resetShift();

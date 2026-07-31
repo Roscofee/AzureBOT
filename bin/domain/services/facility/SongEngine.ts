@@ -59,7 +59,6 @@ export class SongEngine {
                 songName: composed.activatedSong.name,
                 kind: composed.activatedSong.kind,
                 variant: composed.activatedSong.variant,
-                stackLevel: composed.activatedSong.stackLevel,
                 remainingShifts: composed.activatedSong.remainingShifts,
                 summary: composed.activatedSong.summary,
               },
@@ -67,7 +66,7 @@ export class SongEngine {
           });
           const activeMelodies = song.listActiveSongs().filter((activeSong) => activeSong.kind === "melody").length;
           feedback.push(
-            `Activated ${completedSong.name} for ${composed.activatedSong.remainingShifts} shift(s). Melody slots: ${activeMelodies}/${song.getMelodyCapacity()}. Level ${composed.activatedSong.stackLevel}.`,
+            `Activated ${completedSong.name} for ${composed.activatedSong.remainingShifts} shift(s). Melody slots: ${activeMelodies}/${song.getMelodyCapacity()}.`,
           );
         } else {
           feedback.push(`Activated ${completedSong.name} for ${composed.activatedSong.remainingShifts} shift(s).`);
@@ -111,7 +110,7 @@ export class SongEngine {
     const feedback = [
       `Performed ${(active.variant ?? "base")} song ${active.name}. Buffer: ${song.listStoredSongs().length}/${song.getBufferCapacity()}.`,
     ];
-    feedback.push(`Song now buffs occupied adjacent stations for ${active.remainingShifts} shift(s). Level ${active.stackLevel}.`);
+    feedback.push(`Song now buffs occupied adjacent stations for ${active.remainingShifts} shift(s).`);
     return {
       effects: [
         {
@@ -124,7 +123,6 @@ export class SongEngine {
               songName: active.name,
               kind: active.kind,
               variant: active.variant,
-              stackLevel: active.stackLevel,
               remainingShifts: active.remainingShifts,
               summary: active.summary,
             },
@@ -158,7 +156,6 @@ export class SongEngine {
               songName: active.name,
               kind: active.kind,
               variant: active.variant,
-              stackLevel: active.stackLevel,
               remainingShifts: active.remainingShifts,
               summary: active.summary,
             },
@@ -167,7 +164,7 @@ export class SongEngine {
       ],
       feedback: [
         `Encore replayed ${(active.variant ?? "base")} song ${active.name}.`,
-        `Song now buffs occupied adjacent stations for ${active.remainingShifts} shift(s). Level ${active.stackLevel}.`,
+        `Song now buffs occupied adjacent stations for ${active.remainingShifts} shift(s).`,
       ],
     };
   }
@@ -175,7 +172,7 @@ export class SongEngine {
   private applyImmediateSongEffects(player: PlayerCore, completedSong: NonNullable<ReturnType<SongModule["performStoredSong"]>>, feedback: string[]) {
     const scoring = player.tryGet<ScoringModule>("scoring");
     if (scoring && completedSong.scoreBonus) {
-      const bonus = completedSong.scoreBonus * completedSong.stackLevel;
+      const bonus = completedSong.scoreBonus;
       scoring.addCycleScore(bonus);
       feedback.push(`Score increased by ${bonus}.`);
     }
@@ -190,7 +187,7 @@ export class SongEngine {
 
     const bull = player.tryGet<BullModule>("bull");
     if (bull && completedSong.bullCharge) {
-      const bullCharge = completedSong.bullCharge * completedSong.stackLevel;
+      const bullCharge = completedSong.bullCharge;
       const charge = bull.addCharge(bullCharge);
       if (charge.progressed > 0) feedback.push(`Bull charge increased by ${charge.progressed}.`);
     }

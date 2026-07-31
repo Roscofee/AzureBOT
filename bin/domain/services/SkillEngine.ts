@@ -36,7 +36,10 @@ export class SkillEngine {
       const baseEnergy = typeof (skill as any).computeEnergy === "function"
         ? (skill as any).computeEnergy(player)
         : (skill.energyCost ?? 0);
-      const effEnergy = modifiers.resolveNumber("skill.energy", baseEnergy, resolveCtx);
+      const resolvedEnergy = modifiers.resolveNumber("skill.energy", baseEnergy, resolveCtx);
+      const effEnergy = baseEnergy > 0
+        ? Math.max(10, resolvedEnergy)
+        : resolvedEnergy;
 
       if (!classing || classing.state.currentEnergy < effEnergy) {
         if (classing && classing.state.currentEnergy < effEnergy) {

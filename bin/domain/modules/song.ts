@@ -78,7 +78,6 @@ export type ResolvedSong = SongRecipeVariant & {
 export type ActiveSong = ResolvedSong & {
   remainingShifts: number;
   performedAt: number;
-  stackLevel: number;
 };
 
 export type SongComposeResult = {
@@ -112,54 +111,12 @@ export type SongModule = PlayerModule & {
 };
 
 const songSourcePrefix = "song:";
-const SONG_STACK_CAP = 3;
 const songVariantOrder: SongVariant[] = ["S", "L", "XL"];
 const songVariantRank: Record<SongVariant, number> = {
   S: 0,
   L: 1,
   XL: 2,
 };
-
-function extraStacks(level: number): number {
-  return Math.max(0, Math.min(SONG_STACK_CAP, level) - 1);
-}
-
-function scaledRewardMultiplier(base: number, level: number): number {
-  return Number((base + 0.04 * extraStacks(level)).toFixed(3));
-}
-
-function scaledEnergyMultiplier(base: number, level: number, floor = 0.85): number {
-  return Number(Math.max(floor, base - 0.03 * extraStacks(level)).toFixed(3));
-}
-
-function scaledQualityMultiplier(base: number, level: number, cap = 1.3): number {
-  return Number(Math.min(cap, base + 0.04 * extraStacks(level)).toFixed(3));
-}
-
-function scaledBullMultiplier(base: number, level: number, cap = 1.3): number {
-  return Number(Math.min(cap, base + 0.04 * extraStacks(level)).toFixed(3));
-}
-
-function scaleModifier(modifier: AnyModifier, level: number): AnyModifier {
-  return {
-    ...modifier,
-    rewardMultiplier: modifier.rewardMultiplier != null ? scaledRewardMultiplier(modifier.rewardMultiplier, level) : undefined,
-    // Self-melody energy discounts stay fixed per variant; stacking extends uptime instead of deepening discounts.
-    energyCostMultiplier: modifier.energyCostMultiplier,
-  };
-}
-
-function scaleQualityModifier(modifier: QualityModifier, level: number): QualityModifier {
-  return {
-    ...modifier,
-    add: modifier.add != null ? modifier.add * level : undefined,
-    mult: modifier.mult != null ? scaledQualityMultiplier(modifier.mult, level) : undefined,
-    successAdd: modifier.successAdd != null ? modifier.successAdd * level : undefined,
-    failAdd: modifier.failAdd != null ? modifier.failAdd * level : undefined,
-    successMult: modifier.successMult != null ? scaledQualityMultiplier(modifier.successMult, level) : undefined,
-    failMult: modifier.failMult != null ? scaledQualityMultiplier(modifier.failMult, level) : undefined,
-  };
-}
 
 function createShiftBonusModifier(args: {
   id: string;
@@ -351,7 +308,7 @@ export function createSongModule(songBook: SongRecipe[], noteCatalog: SongNoteCa
     left === right ? promoteVariant(left) : lowerVariant(left, right)
   );
 
-  const createActiveSong = (resolved: ResolvedSong, remainingShifts = resolved.durationShifts, stackLevel = 1): ActiveSong => ({
+  const createActiveSong = (resolved: ResolvedSong, remainingShifts = resolved.durationShifts): ActiveSong => ({
     ...resolved,
     pattern: resolved.pattern.slice(),
     slots: resolved.slots?.map((slot) => ({
@@ -360,7 +317,6 @@ export function createSongModule(songBook: SongRecipe[], noteCatalog: SongNoteCa
     })),
     remainingShifts,
     performedAt: Date.now(),
-    stackLevel,
   });
 
   const overwriteActiveSong = (target: ActiveSong, next: ActiveSong) => {
@@ -391,7 +347,7 @@ export function createSongModule(songBook: SongRecipe[], noteCatalog: SongNoteCa
           ? localPreservedUses.get(sourceId)
           : entry.modifier.usesRemaining;
         modifiers.addMany(fromSkillModifier({
-          ...scaleModifier(entry.modifier, song.stackLevel),
+          ...entry.modifier,
           usesRemaining,
         }, {
           id: `${sourceId}:${player.identity.id}`,
@@ -404,7 +360,7 @@ export function createSongModule(songBook: SongRecipe[], noteCatalog: SongNoteCa
       for (const [index, entry] of (song.qualityModifiers ?? []).entries()) {
         const sourceId = `${songSourcePrefix}${song.id}:${song.variant ?? "base"}:quality:${index}`;
         modifiers.addMany(fromQualityModifier(
-          scaleQualityModifier(entry.modifier, song.stackLevel),
+          entry.modifier,
           {
             id: `${sourceId}:${player.identity.id}`,
             sourceType: "song",
@@ -419,7 +375,6 @@ export function createSongModule(songBook: SongRecipe[], noteCatalog: SongNoteCa
         const sourceId = `${songSourcePrefix}${song.id}:${song.variant ?? "base"}:bull:${index}`;
         modifiers.addMany(fromBullModifier({
           ...entry.modifier,
-          chargeMultiplier: entry.modifier.chargeMultiplier != null ? scaledBullMultiplier(entry.modifier.chargeMultiplier, song.stackLevel) : undefined,
         }, {
           id: `${sourceId}:${player.identity.id}`,
           sourceType: "song",
@@ -436,7 +391,7 @@ export function createSongModule(songBook: SongRecipe[], noteCatalog: SongNoteCa
           sourceId,
           ownerPlayerId: player.identity.id,
           target: "shift.scoreBonus",
-          value: (song.shiftScorePerLevel ?? 0) * song.stackLevel,
+          value: song.shiftScorePerLevel ?? 0,
           remainingShifts: song.remainingShifts,
         }));
       }
@@ -448,7 +403,7 @@ export function createSongModule(songBook: SongRecipe[], noteCatalog: SongNoteCa
           sourceId,
           ownerPlayerId: player.identity.id,
           target: "shift.energyBonus",
-          value: (song.shiftEnergyPerLevel ?? 0) * song.stackLevel,
+          value: song.shiftEnergyPerLevel ?? 0,
           remainingShifts: song.remainingShifts,
         }));
       }
@@ -500,21 +455,21 @@ export function createSongModule(songBook: SongRecipe[], noteCatalog: SongNoteCa
 
     const recipe = recipeById.get(resolved.id);
     if (!recipe || !existing.variant || !resolved.variant) {
-      overwriteActiveSong(existing, createActiveSong(resolved, existing.remainingShifts + 1, 1));
+      overwriteActiveSong(existing, createActiveSong(resolved, existing.remainingShifts + 1));
       syncActiveEffects();
       return existing;
     }
 
     const mergedVariant = mergeVariants(existing.variant, resolved.variant);
     const mergedResolved = resolveRecipeAtVariant(recipe, mergedVariant);
-    const nextStackLevel = existing.variant === resolved.variant
-      ? Math.min(SONG_STACK_CAP, existing.stackLevel + 1)
-      : 1;
+    const downgraded = songVariantRank[mergedVariant] < songVariantRank[existing.variant];
+    const nextDuration = downgraded
+      ? mergedResolved.durationShifts
+      : existing.remainingShifts + 1;
 
     overwriteActiveSong(existing, createActiveSong(
       mergedResolved,
-      existing.remainingShifts + 1,
-      nextStackLevel,
+      nextDuration,
     ));
     syncActiveEffects();
     return existing;

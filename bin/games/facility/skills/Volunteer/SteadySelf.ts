@@ -46,8 +46,8 @@ export class SteadySelf implements Skill {
         if (directInvocations.has(normalized)) return true;
 
         const patterns: RegExp[] = [
-            /\b(steady|steadies|steadying|brace|braces|bracing|compose|composes|composing|center|centers|centering)\s+(himself|herself|themself|themselves)\b/,
-            /\b(steady|steadies|steadying|brace|braces|bracing|compose|composes|composing|center|centers|centering)\s+(his|her|their)\s+(body|breathing|posture)\b/,
+            /\b(steady|steadies|steadying |compose|composes|composing|center|centers|centering)\s+(himself|herself|themself|themselves)\b/,
+            /\b(steady|steadies|steadying |compose|composes|composing|center|centers|centering)\s+(his|her|their)\s+(body|breathing|posture)\b/,
             /\b(regain|regains|regaining|recover|recovers|recovering)\s+(his|her|their)\s+(balance|composure|breathing)\b/,
         ];
 

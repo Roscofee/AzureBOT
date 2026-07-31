@@ -68,6 +68,7 @@ export const Limits: LimitsConfig = {
      8: 8,
      2: 6,
      14: 1,
+     18: 1,
   } as Partial<Record<number, number>>,
 };
 export const classMaxLevel = makeClassMaxLevel(Limits, getXPConfigFor);

@@ -78,7 +78,7 @@ test("Melody promotion S + S = L", () => {
 
   const active = getActiveById(song, "mirror-etude");
   assert.equal(active.variant, "L");
-  assert.equal(active.stackLevel, 2);
+  assert.equal(active.remainingShifts, 3);
 });
 
 test("Melody promotion L + L = XL", () => {
@@ -89,7 +89,7 @@ test("Melody promotion L + L = XL", () => {
 
   const active = getActiveById(song, "mirror-etude");
   assert.equal(active.variant, "XL");
-  assert.equal(active.stackLevel, 2);
+  assert.equal(active.remainingShifts, 3);
 });
 
 test("Melody downgrade L + S = S", () => {
@@ -100,7 +100,7 @@ test("Melody downgrade L + S = S", () => {
 
   const active = getActiveById(song, "mirror-etude");
   assert.equal(active.variant, "S");
-  assert.equal(active.stackLevel, 1);
+  assert.equal(active.remainingShifts, 2);
 });
 
 test("Song promotion S + S = L", () => {
@@ -111,7 +111,7 @@ test("Song promotion S + S = L", () => {
 
   const active = getActiveById(song, "rallying-chorus");
   assert.equal(active.variant, "L");
-  assert.equal(active.stackLevel, 2);
+  assert.equal(active.remainingShifts, 3);
 });
 
 test("Song promotion L + L = XL", () => {
@@ -122,7 +122,7 @@ test("Song promotion L + L = XL", () => {
 
   const active = getActiveById(song, "rallying-chorus");
   assert.equal(active.variant, "XL");
-  assert.equal(active.stackLevel, 2);
+  assert.equal(active.remainingShifts, 3);
 });
 
 test("Song downgrade L + S = S", () => {
@@ -133,5 +133,5 @@ test("Song downgrade L + S = S", () => {
 
   const active = getActiveById(song, "rallying-chorus");
   assert.equal(active.variant, "S");
-  assert.equal(active.stackLevel, 1);
+  assert.equal(active.remainingShifts, 2);
 });

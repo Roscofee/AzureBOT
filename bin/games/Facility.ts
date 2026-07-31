@@ -117,6 +117,8 @@ export class Facility{
     private selectedClassesThisSession = new Map<number, Set<number>>();
     private readonly moonstrelAuraSourcePrefix = "moonstrel:aura:";
     private readonly moonstrelAuraMoneyPerStation = 40;
+    private readonly moonstrelAuraOverrideXpPerStation = 10;
+    private moonstrelAuraOverrideState = new Map<string, string>();
 
     public constructor(private conn: API_Connector){
 
@@ -160,7 +162,6 @@ export class Facility{
                 songName?: string;
                 kind?: "song" | "melody";
                 variant?: string;
-                stackLevel?: number;
                 remainingShifts?: number;
                 summary?: string;
             });
@@ -1800,6 +1801,7 @@ export class Facility{
         const occupantIds = Array.from(new Set(this.workstationOccupants.values()));
         const preservedAuraUses = new Map<string, number | undefined>();
         const preservedSongUsesByPlayer = new Map<number, Map<string, number | undefined>>();
+        const auraCandidates = new Map<number, Map<string, Array<{ sourcePlayerId: number; activeSong: ActiveSong }>>>();
 
         for (const playerId of occupantIds) {
             const player = this.router.get(playerId) as DairyPlayer | undefined;
@@ -1828,9 +1830,64 @@ export class Facility{
                 for (const targetStationId of this.getAdjacentWorkstations(sourceStationId)) {
                     const targetPlayerId = this.workstationOccupants.get(targetStationId);
                     if (targetPlayerId === undefined) continue;
-                    this.applyMoonstrelAuraToPlayer(targetPlayerId, sourcePlayerId, activeSong, preservedAuraUses);
+                    let targetSongs = auraCandidates.get(targetPlayerId);
+                    if (!targetSongs) {
+                        targetSongs = new Map();
+                        auraCandidates.set(targetPlayerId, targetSongs);
+                    }
+
+                    const songId = activeSong.id;
+                    const candidates = targetSongs.get(songId) ?? [];
+                    candidates.push({ sourcePlayerId, activeSong });
+                    targetSongs.set(songId, candidates);
                 }
             }
+        }
+
+        const nextOverrideState = new Map<string, string>();
+        const overrideRewards = new Map<string, { xp: number; stations: number; songs: Map<string, { name: string; count: number }> }>();
+
+        for (const [targetPlayerId, targetSongs] of auraCandidates) {
+            for (const [songId, candidates] of targetSongs) {
+                const winner = candidates.reduce((best, current) => (
+                    this.compareMoonstrelAuraCandidates(current, best) < 0 ? current : best
+                ));
+
+                this.applyMoonstrelAuraToPlayer(targetPlayerId, winner.sourcePlayerId, winner.activeSong, preservedAuraUses);
+
+                for (const candidate of candidates) {
+                    if (candidate.sourcePlayerId === winner.sourcePlayerId) continue;
+
+                    const overrideKey = `${candidate.sourcePlayerId}:${targetPlayerId}:${songId}`;
+                    const overrideValue = `${winner.sourcePlayerId}:${winner.activeSong.variant ?? "base"}`;
+                    nextOverrideState.set(overrideKey, overrideValue);
+
+                    if (this.moonstrelAuraOverrideState.get(overrideKey) === overrideValue) continue;
+
+                    const rewardKey = `${candidate.sourcePlayerId}`;
+                    const reward = overrideRewards.get(rewardKey) ?? { xp: 0, stations: 0, songs: new Map<string, { name: string; count: number }>() };
+                    reward.xp += this.moonstrelAuraOverrideXpPerStation;
+                    reward.stations += 1;
+                    const songReward = reward.songs.get(songId) ?? { name: candidate.activeSong.name, count: 0 };
+                    songReward.count += 1;
+                    reward.songs.set(songId, songReward);
+                    overrideRewards.set(rewardKey, reward);
+                }
+            }
+        }
+
+        this.moonstrelAuraOverrideState = nextOverrideState;
+
+        for (const [playerIdText, reward] of overrideRewards) {
+            const playerId = Number(playerIdText);
+            const finalXp = this.grantMoonstrelOverrideXp(playerId, reward.xp);
+            const summary = Array.from(reward.songs.values())
+                .map((entry) => `${entry.name} x${entry.count}`)
+                .join(", ");
+            this.messages.whisper(
+                playerId,
+                `(A stronger matching song overrides your aura at ${reward.stations} occupied station(s): ${summary}. Consolation XP: +${finalXp})`,
+            );
         }
     }
 
@@ -1839,7 +1896,6 @@ export class Facility{
         songName?: string;
         kind?: "song" | "melody";
         variant?: string;
-        stackLevel?: number;
         remainingShifts?: number;
         summary?: string;
     }): void {
@@ -1850,12 +1906,11 @@ export class Facility{
         const sourcePlayer = this.router.get(sourcePlayerId) as DairyPlayer | undefined;
         const sourceName = sourcePlayer?.getName() ?? `Player ${sourcePlayerId}`;
         const variant = payload.variant ? ` ${payload.variant}` : "";
-        const levelText = payload.stackLevel != null ? ` level ${payload.stackLevel}` : "";
         const durationText = payload.remainingShifts != null ? ` for ${payload.remainingShifts} shift(s)` : "";
         const summaryText = payload.summary ? ` ${payload.summary}` : "";
         const baseText = kind === "melody"
             ? `(${sourceName} activated melody ${payload.songName ?? "Unknown"}${variant}${durationText}.${summaryText})`
-            : `(${sourceName} activated song ${payload.songName ?? "Unknown"}${variant}${durationText}, aura${levelText}.${summaryText})`;
+            : `(${sourceName} activated song ${payload.songName ?? "Unknown"}${variant}${durationText}, aura.${summaryText})`;
 
         if (kind === "melody") {
             this.messages.whisper(sourcePlayerId, baseText);
@@ -1918,7 +1973,7 @@ export class Facility{
                 : defaultUses;
 
             modifiers.addMany(fromSkillModifier({
-                ...this.scaleAuraSkillModifier(entry.modifier, activeSong.stackLevel),
+                ...entry.modifier,
                 usesRemaining,
             }, {
                 id: `${sourceId}:${targetPlayerId}`,
@@ -1930,7 +1985,7 @@ export class Facility{
 
         for (const [index, entry] of (activeSong.qualityModifiers ?? []).entries()) {
             modifiers.addMany(fromQualityModifier({
-                ...this.scaleAuraQualityModifier(entry.modifier, activeSong.stackLevel),
+                ...entry.modifier,
                 remainingShifts: entry.remainingShifts ?? activeSong.remainingShifts,
                 sourceId: this.getMoonstrelAuraQualitySourceId(sourcePlayerId, activeSong, index),
             }, {
@@ -1946,9 +2001,6 @@ export class Facility{
             const sourceId = `${this.moonstrelAuraSourcePrefix}${sourcePlayerId}:${activeSong.id}:${activeSong.variant ?? "base"}:bull:${index}`;
             modifiers.addMany(fromBullModifier({
                 ...entry.modifier,
-                chargeMultiplier: entry.modifier.chargeMultiplier != null
-                    ? Number(Math.min(1.3, entry.modifier.chargeMultiplier + (0.04 * Math.max(0, Math.min(3, activeSong.stackLevel) - 1))).toFixed(3))
-                    : undefined,
             }, {
                 id: `${sourceId}:${targetPlayerId}`,
                 sourceType: "song",
@@ -1957,6 +2009,39 @@ export class Facility{
                 remainingShifts: entry.remainingShifts ?? activeSong.remainingShifts,
             }));
         }
+    }
+
+    private compareMoonstrelAuraCandidates(
+        left: { sourcePlayerId: number; activeSong: ActiveSong },
+        right: { sourcePlayerId: number; activeSong: ActiveSong },
+    ): number {
+        const rankDiff = this.getSongVariantRank(right.activeSong.variant) - this.getSongVariantRank(left.activeSong.variant);
+        if (rankDiff !== 0) return rankDiff;
+
+        const durationDiff = right.activeSong.remainingShifts - left.activeSong.remainingShifts;
+        if (durationDiff !== 0) return durationDiff;
+
+        return left.sourcePlayerId - right.sourcePlayerId;
+    }
+
+    private getSongVariantRank(variant?: string): number {
+        if (variant === "XL") return 3;
+        if (variant === "L") return 2;
+        if (variant === "S") return 1;
+        return 0;
+    }
+
+    private grantMoonstrelOverrideXp(playerId: number, baseXp: number): number {
+        if (baseXp <= 0) return 0;
+        const classing = this.router.get(playerId)?.tryGet<ClassingModule>("classing");
+        if (!classing || classing.state.classId === -1) return 0;
+
+        const finalXp = Math.max(0, this.applyStat("xp", baseXp, playerId));
+        const levels = classing.gainXp(finalXp);
+        if (levels > 0) {
+            this.messages.whisper(playerId, `(You gained ${levels} level${levels > 1 ? "s" : ""}!)`);
+        }
+        return finalXp;
     }
 
     private getNeighborWorkstations(originId: number, radius: number): number[] {
@@ -2008,32 +2093,6 @@ export class Facility{
 
     private getMoonstrelAuraQualitySourceId(sourcePlayerId: number, activeSong: ActiveSong, index: number): string {
         return `${this.moonstrelAuraSourcePrefix}${sourcePlayerId}:${activeSong.id}:${activeSong.variant ?? "base"}:quality:${index}`;
-    }
-
-    private scaleAuraSkillModifier(modifier: AnyModifier, level: number): AnyModifier {
-        const extraStacks = Math.max(0, Math.min(3, level) - 1);
-        return {
-            ...modifier,
-            rewardMultiplier: modifier.rewardMultiplier != null
-                ? Number((modifier.rewardMultiplier + (0.04 * extraStacks)).toFixed(3))
-                : undefined,
-            energyCostMultiplier: modifier.energyCostMultiplier != null
-                ? Number(Math.max(0.85, modifier.energyCostMultiplier - (0.03 * extraStacks)).toFixed(3))
-                : undefined,
-        };
-    }
-
-    private scaleAuraQualityModifier(modifier: QualityModifier, level: number): QualityModifier {
-        const extraStacks = Math.max(0, Math.min(3, level) - 1);
-        return {
-            ...modifier,
-            add: modifier.add != null ? modifier.add * level : undefined,
-            mult: modifier.mult != null ? Number(Math.min(1.3, modifier.mult + (0.04 * extraStacks)).toFixed(3)) : undefined,
-            successAdd: modifier.successAdd != null ? modifier.successAdd * level : undefined,
-            failAdd: modifier.failAdd != null ? modifier.failAdd * level : undefined,
-            successMult: modifier.successMult != null ? Number(Math.min(1.3, modifier.successMult + (0.04 * extraStacks)).toFixed(3)) : undefined,
-            failMult: modifier.failMult != null ? Number(Math.min(1.3, modifier.failMult + (0.04 * extraStacks)).toFixed(3)) : undefined,
-        };
     }
 
     private renderSongRecipe(recipe: SongRecipe): string {
