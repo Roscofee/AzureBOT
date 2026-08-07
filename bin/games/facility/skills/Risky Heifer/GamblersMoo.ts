@@ -1,6 +1,8 @@
 import { PlayerCore } from "../../../../domain/core/PlayerCore";
 import { IncomingMessage } from "../../../../domain/ports/MessagePort";
 import { Skill, SkillResult, ChatMessageType } from "../../../../domain/skills/Skill.types";
+import { FacilityConfig } from "../../config";
+import { consumeHeiferRollEffect } from "./heiferRollState";
 
 const MOO_TRIGGER = /(?:^|[^\p{L}\p{N}])moo+(?:ing|s)?(?=$|[^\p{L}\p{N}])/u;
 
@@ -16,10 +18,11 @@ export class GamblersMoo implements Skill {
     energyCost: number = 10;
     priority: number = 5;
 
-    private criticalThresholdBase = 35;
+    private criticalThresholdBase = 40;
+    private criticalThresholdCap = 50;
     private failureThreshold = 80;
-    private criticalMultiplier = 2.2;
-    private failureMultiplier = 0.4;
+    private criticalMultiplier = 1.5;
+    private failureMultiplier = 0.6;
 
     constructor(args: {
         skillId: number;
@@ -47,16 +50,15 @@ export class GamblersMoo implements Skill {
     }
 
     use(player: PlayerCore): SkillResult {
-        const baseIncrease = 3;
-        const levelMultiplier = 1 + (0.1 * this.skillLevel);
-        const baseReward = baseIncrease * levelMultiplier;
+        const baseReward = 2;
         const playerRoll = Math.floor(Math.random() * 100) + 1;
-        const criticalThreshold = Math.min(
-            Math.floor(this.criticalThresholdBase + (1.5 * this.skillLevel)),
-            70,
-        );
-        const isCritical = playerRoll <= criticalThreshold;
-        const isFailure = playerRoll > this.failureThreshold || playerRoll === 100;
+        const criticalThreshold = this.getCriticalThreshold();
+        const heiferRoll = consumeHeiferRollEffect(player);
+        const forcedCrit = heiferRoll === "autoCrit";
+        const forcedFail = heiferRoll === "autoFail";
+        const safeNoCrit = heiferRoll === "safeNoCrit";
+        const isCritical = forcedCrit || (!safeNoCrit && playerRoll <= criticalThreshold);
+        const isFailure = forcedFail || (!forcedCrit && !safeNoCrit && (playerRoll > this.failureThreshold || playerRoll === 100));
         const reward = isCritical
             ? baseReward * this.criticalMultiplier
             : isFailure
@@ -66,14 +68,24 @@ export class GamblersMoo implements Skill {
 
         const name = player.identity.nickname ?? player.identity.name;
         if (isCritical) {
-            console.log(`${name} triggered GamblersMoo CRITICAL (${reward.toFixed(2)} milk, roll ${playerRoll}/${criticalThreshold})`);
+            console.log(`${name} triggered GamblersMoo CRITICAL (${reward.toFixed(2)} milk, roll ${playerRoll}/${criticalThreshold}${forcedCrit ? ", forced" : ""})`);
         } else if (isFailure) {
-            console.log(`${name} triggered GamblersMoo FAIL (${reward.toFixed(2)} milk, roll ${playerRoll}>${this.failureThreshold})`);
+            console.log(`${name} triggered GamblersMoo FAIL (${reward.toFixed(2)} milk, roll ${playerRoll}>${this.failureThreshold}${forcedFail ? ", forced" : ""})`);
         } else {
-            console.log(`${name} triggered GamblersMoo NORMAL (${reward.toFixed(2)} milk, roll ${playerRoll})`);
+            console.log(`${name} triggered GamblersMoo NORMAL (${reward.toFixed(2)} milk, roll ${playerRoll}${safeNoCrit ? ", fail-safe" : ""})`);
         }
 
         return { energy: this.computeEnergy(player), reward, outcome };
+    }
+
+    private getCriticalThreshold(): number {
+        const maxLevel = FacilityConfig.skillMaxLevel(this.skillId);
+        if (maxLevel <= 1) return this.criticalThresholdCap;
+        const progress = Math.min(1, Math.max(0, (this.skillLevel - 1) / (maxLevel - 1)));
+        return Math.round(
+            this.criticalThresholdBase
+            + ((this.criticalThresholdCap - this.criticalThresholdBase) * progress),
+        );
     }
 
     computeEnergy(player: PlayerCore): number {

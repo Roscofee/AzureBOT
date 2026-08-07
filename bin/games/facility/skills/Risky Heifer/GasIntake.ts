@@ -4,6 +4,7 @@ import { Skill, SkillResult, ChatMessageType } from "../../../../domain/skills/S
 import { DomainEvent } from "../../../../domain/ports/DomainEvenPort";
 import { FacilityConfig, FacilityEvents } from "../../config";
 import { dialog } from "../../../../dialog/dialog";
+import { consumeHeiferRollEffect } from "./heiferRollState";
 
 export class GasIntake implements Skill {
   skillId: number;
@@ -29,13 +30,15 @@ export class GasIntake implements Skill {
   private roundSuccesses = 0;
   private baseSuccess: number;
   private currentSuccess: number;
-  private decayRate: number = 0.15; 
+  private decayRate: number = 0.10;
   private rewardModifier: number = 1;
   private successRateModifier: number = 0;
   private currentHaul: number = 0;
-  private maxLevelCarryRetention: number = 0.35;
-  private failureLossMultiplier: number = 0.8;
+  private maxLevelCarryRetention: number = 0.5;
+  private failureLossMultiplier: number = 0.65;
   private failureMessage?: string;
+  private nextDecayMultiplier: number = 1;
+  private nextRewardStepBonus: number = 0;
 
   constructor(args: {
     skillId: number;
@@ -63,6 +66,18 @@ export class GasIntake implements Skill {
 
   setSuccessRateModifier(successRateModifier: number) {
     this.successRateModifier = successRateModifier;
+  }
+
+  setNextDecayMultiplier(multiplier: number) {
+    this.nextDecayMultiplier = multiplier;
+  }
+
+  setNextRewardStepBonus(bonus: number) {
+    this.nextRewardStepBonus = bonus;
+  }
+
+  getRoundSuccesses(): number {
+    return this.roundSuccesses;
   }
 
   validInput(data: IncomingMessage): boolean {
@@ -95,6 +110,10 @@ export class GasIntake implements Skill {
   use(player: PlayerCore): SkillResult {
     // d100 roll, inclusive 1..100
     const playerRoll = Math.floor(Math.random() * 100) + 1;
+    const heiferRoll = consumeHeiferRollEffect(player);
+    const forcedCrit = heiferRoll === "autoCrit";
+    const forcedFail = heiferRoll === "autoFail";
+    const safeNoCrit = heiferRoll === "safeNoCrit";
 
     const currentSucessRate = this.currentSuccess + this.successRateModifier;
     const normalizedSuccessRate = Math.round(currentSucessRate * 100);
@@ -106,8 +125,8 @@ export class GasIntake implements Skill {
     console.log(`GASINTAKE: ${name} current success chance ${currentSucessRate}`);
     console.log(`GASINTAKE: ${name} normalized final success chance ${normalizedSuccessRate}`);
 
-    if (playerRoll <= normalizedSuccessRate) {
-      console.log(`GASINTAKE: ${name} roll [${playerRoll}] success with threshold ${normalizedSuccessRate}`);
+    if (forcedCrit || (!forcedFail && (safeNoCrit || playerRoll <= normalizedSuccessRate))) {
+      console.log(`GASINTAKE: ${name} roll [${playerRoll}] success with threshold ${normalizedSuccessRate}${forcedCrit ? " forced crit" : safeNoCrit ? " fail-safe" : ""}`);
 
       this.roundSuccesses++;
 
@@ -125,12 +144,13 @@ export class GasIntake implements Skill {
       console.log(`GASINTAKE: ${name} reward modifier ${this.rewardModifier}`);
       this.successRateModifier = 0;
       this.rewardModifier = 1;
-      return { energy: this.energyCost, reward, outcome: "success" };
+      this.nextRewardStepBonus = 0;
+      return { energy: this.energyCost, reward, outcome: forcedCrit ? "critical" : "success" };
     } else {
       this.gasNumb = true;
       this.currentHaul *= -this.failureLossMultiplier;
       console.log(
-        `GASINTAKE: ${name} failed roll [${playerRoll}] number ${this.roundSuccesses} with threshold ${normalizedSuccessRate}`
+        `GASINTAKE: ${name} failed roll [${playerRoll}] number ${this.roundSuccesses} with threshold ${normalizedSuccessRate}${forcedFail ? " forced" : ""}`
       );
 
       // Emit a broadcast message via the domain event bus bridge
@@ -144,13 +164,15 @@ export class GasIntake implements Skill {
       // reset knobs before returning on failure
       this.successRateModifier = 0;
       this.rewardModifier = 1;
+      this.nextDecayMultiplier = 1;
+      this.nextRewardStepBonus = 0;
       return { energy: this.energyCost, reward: this.currentHaul, outcome: "fail", effects: [{ type: "EMIT_EVENT", event: evt }] };
     }
   }
 
   private reduceSuccessRate() {
-    // decrease by 20 percentage points but clamp to 20% floor
-    this.currentSuccess -= this.decayRate;
+    this.currentSuccess -= this.decayRate * this.nextDecayMultiplier;
+    this.nextDecayMultiplier = 1;
     if (this.currentSuccess < 0.2) this.currentSuccess = 0.2;
   }
 
@@ -160,26 +182,28 @@ export class GasIntake implements Skill {
 
     if (this.roundSuccesses > 5) this.roundSuccesses = 5;
 
-    switch (this.roundSuccesses) {
+    const rewardStep = Math.min(5, this.roundSuccesses + this.nextRewardStepBonus);
+
+    switch (rewardStep) {
       case 1:
         whisperText = dialog.numbness.numbness4;
         reward = 2;
         break;
       case 2:
         whisperText = dialog.numbness.numbness5;
-        reward = 3;
+        reward = 4;
         break;
       case 3:
         whisperText = dialog.numbness.numbness6;
-        reward = 4;
+        reward = 7;
         break;
       case 4:
         whisperText = dialog.numbness.numbness7;
-        reward = 5;
+        reward = 11;
         break;
       case 5:
         whisperText = dialog.numbness.numbness8;
-        reward = 6;
+        reward = 16;
         break;
       default:
         reward = 0;
@@ -208,6 +232,8 @@ export class GasIntake implements Skill {
     this.rewardModifier = 1;
     this.successRateModifier = 0;
     this.currentSuccess = this.baseSuccess;
+    this.nextDecayMultiplier = 1;
+    this.nextRewardStepBonus = 0;
     const name = '<unknown>';
     console.log(`GASINTAKE: executing RESET at end of shift for ${name}`);
   }

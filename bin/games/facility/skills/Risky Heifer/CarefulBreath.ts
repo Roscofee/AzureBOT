@@ -16,7 +16,7 @@ export class CarefulBreath implements Skill {
   energyCost: number = 20;
   priority: number = 5;
 
-  private successRateIncrementBase = 0.03;
+  private successRateIncrementBase = 0.05;
 
   constructor(args: {
     skillId: number;
@@ -76,7 +76,7 @@ export class CarefulBreath implements Skill {
     }
 
     const successRateIncrement = this.skillLevel * this.successRateIncrementBase;
-    const rewardModifier = Math.max(0.70, 0.95 - this.skillLevel * 0.025);
+    const rewardModifier = Math.max(0.85, 0.95 - this.skillLevel * 0.01);
 
     console.log(
       `CAREFULBREATH: ${name} setting GasIntake successRateModifier to ${successRateIncrement}`
@@ -87,6 +87,11 @@ export class CarefulBreath implements Skill {
       `CAREFULBREATH: ${name} setting GasIntake rewardModifier to ${rewardModifier}`
     );
     gas.setRewardModifier(rewardModifier);
+
+    if (gas.getRoundSuccesses() >= 3) {
+      console.log(`CAREFULBREATH: ${name} reducing next GasIntake decay step by 50%`);
+      gas.setNextDecayMultiplier(0.5);
+    }
 
     return { energy: this.energyCost, reward: 0 };
   }

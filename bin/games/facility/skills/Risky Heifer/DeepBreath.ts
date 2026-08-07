@@ -16,7 +16,7 @@ export class DeepBreath implements Skill {
   energyCost: number = 20;
   priority: number = 5;
 
-  private successRateDecreaseBase = 0.2; // applied as negative to success rate
+  private successRateDecreaseBase = 0.15; // applied as negative to success rate
   private rewardModifierBase = 1.0;
 
   constructor(args: {
@@ -54,6 +54,7 @@ export class DeepBreath implements Skill {
     const gas = skillsMod.list().find((s) => s instanceof GasIntake) as GasIntake | undefined;
     if (!gas) return false;
     if ((gas as any).gasNumb) return false;
+    if ((gas as any).successRateModifier !== 0 || (gas as any).rewardModifier !== 1) return false;
     return true;
   }
 
@@ -71,7 +72,7 @@ export class DeepBreath implements Skill {
     }
 
     const successRateDecrease = -this.successRateDecreaseBase; // e.g., -0.2
-    const rewardModifier = this.rewardModifierBase + this.skillLevel * 0.08;
+    const rewardModifier = this.rewardModifierBase + this.skillLevel * 0.12;
 
     console.log(
       `DEEPBREATH: ${name} setting GasIntake successRateModifier to ${successRateDecrease}`
@@ -82,6 +83,11 @@ export class DeepBreath implements Skill {
       `DEEPBREATH: ${name} setting GasIntake rewardModifier to ${rewardModifier}`
     );
     gas.setRewardModifier(rewardModifier);
+
+    if (gas.getRoundSuccesses() >= 3) {
+      console.log(`DEEPBREATH: ${name} increasing next GasIntake reward step by 1`);
+      gas.setNextRewardStepBonus(1);
+    }
 
     return { energy: this.energyCost, reward: 0 };
   }
