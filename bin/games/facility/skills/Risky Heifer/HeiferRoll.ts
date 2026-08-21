@@ -12,7 +12,7 @@ export class HeiferRoll implements Skill {
   upgrade_description: string;
 
   validMessageTypes: ChatMessageType[] = ["Chat", "Emote"];
-  triggerTokens: string[] = ["heiferroll", "roll"];
+  triggerTokens: string[] = ["heiferroll", "roll", "gamble", "rolls"];
   energyCost = 40;
   priority = 6;
 

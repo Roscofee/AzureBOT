@@ -14,11 +14,11 @@ export class Focus implements Skill {
 
     validMessageTypes: ChatMessageType[] = ["Emote"];
     triggerTokens: string[] = ["focus", "focused", "focuses", "concentrates", "concentrating"];
-    energyCost: number = 40;
+    energyCost: number = 10;
     priority: number = 10;
 
-    private rewardBoostBase = 0.30;
-    private rewardBoostPerLevel = 0.015;
+    private rewardBoostBase = 0.14;
+    private rewardBoostPerLevel = 0.02;
     private boostedSkills = ["Moo", "LiftChest"];
 
     constructor(args: {
@@ -50,7 +50,8 @@ export class Focus implements Skill {
 
     use(player: PlayerCore): SkillResult {
         const modifiers = player.tryGet<ModifierModule>("modifiers");
-        if (!modifiers) return { energy: this.energyCost, reward: 0 };
+        const energy = this.computeEnergy(player);
+        if (!modifiers) return { energy, reward: 0 };
 
         const rewardBoost = this.rewardBoostBase + (this.rewardBoostPerLevel * this.skillLevel);
         const rewardMultiplier = 1 + rewardBoost;
@@ -69,9 +70,19 @@ export class Focus implements Skill {
         console.log(`${name} primed Focus for next milk skill (+${Math.round(rewardBoost * 100)}%)`);
 
         return {
-            energy: this.energyCost,
+            energy,
             reward: 0,
+            feedback: [`${this.skillName} empowers your next milk skill by ${Math.round(rewardBoost * 100)}%.`],
         };
+    }
+
+    computeEnergy(player: PlayerCore): number {
+        const classing = player.tryGet<any>("classing");
+        if (!classing) return this.energyCost;
+
+        const maxEnergy = classing.state.maxEnergy ?? 0;
+        const scalingCost = Math.floor(maxEnergy * 0.1);
+        return this.energyCost + scalingCost;
     }
 
     reset(): void {}

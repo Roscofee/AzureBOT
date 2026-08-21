@@ -236,6 +236,7 @@ export class Facility{
         this.commandParser.register("class", this.onCommandClass);
         this.commandParser.register("classShop", this.onCommandClassShop);
         this.commandParser.register("skills", this.onCommandSkills);
+        this.commandParser.register("quality", this.onCommandQuality);
         this.commandParser.register("songbook", this.onCommandSongbook);
         this.commandParser.register("songs", this.onCommandSongs);
         this.commandParser.register("momentum", this.onCommandMomentum);
@@ -658,6 +659,30 @@ export class Facility{
         
     };
 
+    private onCommandQuality = async (
+        sender: API_Character,
+        msg: BC_Server_ChatRoomMessage,
+        args: string[],
+    ) => {
+
+         // Ensure the sender has permission (must be registered)
+        if (!this.commandPermission(sender, true)) return;
+
+        const player = this.router.get(sender.MemberNumber) as DairyPlayer | undefined;
+        if (!player) {
+            this.messages.whisper(sender.MemberNumber, dialog.error.notRegistered);
+            return;
+        }
+
+        const quality = player.tryGet<QualityModule>("quality");
+        if (!quality) {
+            this.messages.whisper(sender.MemberNumber, "(ERROR: missing quality module)");
+            return;
+        }
+
+        this.messages.whisper(player.identity.id, quality.printQualityInfo());
+    };
+
     private onCommandSongbook = async (
         sender: API_Character,
         msg: BC_Server_ChatRoomMessage,
@@ -1020,7 +1045,7 @@ export class Facility{
         const cycleScore = scoring?.totals().cycleScore ?? 0;
         const sessionScore = scoring?.totals().sessionScore ?? 0;
         const qualityText = quality
-            ? `${quality.getNormalizedQuality()}% [base ${quality.state.qualityScore.toFixed(2)}]`
+            ? `${quality.getNormalizedQuality()}% ${quality.getBandLabel()} [pay x${quality.getPayoutMultiplier().toFixed(2)}, base ${quality.state.qualityScore.toFixed(2)}]`
             : "unavailable";
         const bullText = bull
             ? `${this.getBullStageLabel(bull)} ${bull.state.energy}/${this.getBullEnergyCap(bull)}${bull.state.ready ? " READY" : ""}`
@@ -1682,6 +1707,7 @@ export class Facility{
             const player = this.router.get(playerId) as DairyPlayer | undefined;
             if (!player) continue;
             player.tryGet<ModifierModule>("modifiers")?.tickShift();
+            player.tryGet<QualityModule>("quality")?.tickShift();
         }
 
         this.rebuildMoonstrelSongAuras();
@@ -2215,14 +2241,23 @@ export class Facility{
 
         //Quality bonus: up to +10% of current base when quality is high
         const qualityMod = player.tryGet<QualityModule>("quality");
-        const qualityMultiplier = qualityMod ? qualityMod.getQuality() : 1;
+        const qualityMultiplier = qualityMod ? qualityMod.getPayoutMultiplier() : 1;
 
         const finalBase = Math.floor((base + totalScoreIncrease) * qualityMultiplier);
 
-        const finalPayout = Math.max(0, this.applyStat("economy", finalBase, playerId));
+        const adjustedPayout = this.applyStat("economy", finalBase, playerId);
+        let finalPayout = Math.max(base, adjustedPayout);
+        const noteParts: string[] = [];
+        if (qualityMod) {
+            noteParts.push(`${qualityMod.getBandLabel()} quality x${qualityMultiplier.toFixed(2)}`);
+        }
+        if (qualityMod?.triggerRandomOutcome() === "positive") {
+            finalPayout = Math.floor(finalPayout * 1.25);
+            noteParts.push("quality payout bonus +25%");
+        }
         if (finalPayout > 0) {
             econ.add(finalPayout);
-            const note = qualityMultiplier !== 1 ? ` (quality x${qualityMultiplier.toFixed(2)})` : "";
+            const note = noteParts.length > 0 ? ` (${noteParts.join(", ")})` : "";
             this.messages.whisper(playerId, dialog.phase2.payRoll.replace("$wage", finalPayout.toString()) + note);
         }
         return finalPayout;

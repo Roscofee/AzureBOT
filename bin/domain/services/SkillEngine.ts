@@ -69,12 +69,17 @@ export class SkillEngine {
       });
 
       classing.state.currentEnergy -= effEnergy;
+      const remainingEnergy = classing.state.currentEnergy;
+      const maxEnergy = classing.state.maxEnergy;
 
       if (scoring && finalReward !== 0) scoring.addCycleScore(Math.floor(finalReward));
 
       for (const effect of finalEffects) this.applyEffect(player, effect);
 
-      messages.push(`You used ${skill.skillName}, energy cost: ${effEnergy}, reward: ${finalReward.toFixed(2)}`);
+      const energySuffix = effEnergy > 0
+        ? `, remaining energy: ${remainingEnergy}/${maxEnergy}`
+        : "";
+      messages.push(`You used ${skill.skillName}, energy cost: ${effEnergy}, reward: ${finalReward.toFixed(2)}${energySuffix}`);
       if (base.feedback?.length) messages.push(...base.feedback);
     }
 

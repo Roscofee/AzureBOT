@@ -22,7 +22,10 @@ export function createSkillsModule(): SkillsModule {
       }
 
       for (const skill of this.state.skills) {
-        aux += `|| ${skill.skillName}, Level ${skill.skillLevel} ||\n` + `-> ${skill.description}\n`;
+        const baseCost = typeof skill.computeEnergy === "function"
+          ? skill.computeEnergy(player!)
+          : (skill.energyCost ?? 0);
+        aux += `|| ${skill.skillName}, Level ${skill.skillLevel}, Cost: ${baseCost} energy ||\n` + `-> ${skill.description}\n`;
       }
 
       return aux;

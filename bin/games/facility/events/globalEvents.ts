@@ -130,7 +130,7 @@ export const globalEvents: GlobalEventDef[] = [
   {
     id: "Maus",
     name: "Maus assault",
-    description: "Mice are siphoning milk to make cheese, all skill rewards are reduced by 50% while coporate security eliminates the treath",
+    description: "M.I.C.E is siphoning milk to make cheese, all skill rewards are reduced by 50% while corporate security eliminates the threat",
     priority: 3,
     weight: 4,
     durationShifts: 1,

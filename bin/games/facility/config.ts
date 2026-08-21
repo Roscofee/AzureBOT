@@ -80,6 +80,20 @@ export const skillMaxLevel = makeSkillMaxLevel(Limits);
 // Example: reduce XP gain to 75% after level 50, and to 50% after level 80.
 export const xpGainRulesByClass: Partial<Record<number, XPGainRule[]>> = {
   [FacilityClassId.Volunteer]: [
+    { fromLevel: 1, multiplier: 1.25 },
+    { fromLevel: 10, multiplier: 1.0 },
+    { fromLevel: 50, multiplier: 0.75 },
+    { fromLevel: 80, multiplier: 0.5 },
+  ],
+  [FacilityClassId.Gambler]: [
+    { fromLevel: 1, multiplier: 1.25 },
+    { fromLevel: 10, multiplier: 1.0 },
+    { fromLevel: 50, multiplier: 0.75 },
+    { fromLevel: 80, multiplier: 0.5 },
+  ],
+  [FacilityClassId.Moonstrel]: [
+    { fromLevel: 1, multiplier: 1.5 },
+    { fromLevel: 10, multiplier: 1.0 },
     { fromLevel: 50, multiplier: 0.75 },
     { fromLevel: 80, multiplier: 0.5 },
   ],
